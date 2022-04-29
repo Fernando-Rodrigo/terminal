@@ -21,14 +21,6 @@ namespace Microsoft.Terminal.Wpf
         private int accumulatedDelta = 0;
 
         /// <summary>
-        /// Gets size of the terminal renderer.
-        /// </summary>
-        private Size TerminalRendererSize
-        {
-            get => this.termContainer.TerminalRendererSize;
-        }
-
-        /// <summary>
         /// Initializes a new instance of the <see cref="TerminalControl"/> class.
         /// </summary>
         public TerminalControl()
@@ -68,6 +60,14 @@ namespace Microsoft.Terminal.Wpf
         public ITerminalConnection Connection
         {
             set => this.termContainer.Connection = value;
+        }
+
+        /// <summary>
+        /// Gets size of the terminal renderer.
+        /// </summary>
+        private Size TerminalRendererSize
+        {
+            get => this.termContainer.TerminalRendererSize;
         }
 
         /// <summary>
@@ -117,13 +117,13 @@ namespace Microsoft.Terminal.Wpf
         /// <param name="columns">Number of columns to display.</param>
         /// <param name="cancellationToken">Cancellation token for this task.</param>
         /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-        public async Task ResizeAsync(uint rows, uint columns, CancellationToken cancellationToken)
+        public async Task ResizeAsync(int rows, int columns, CancellationToken cancellationToken)
         {
             this.termContainer.Resize(rows, columns);
 
 #pragma warning disable VSTHRD001 // Avoid legacy thread switching APIs
             await this.Dispatcher.BeginInvoke(
-                new Action(delegate() { this.terminalGrid.Margin = this.CalculateMargins(); }),
+                new Action(delegate { this.terminalGrid.Margin = this.CalculateMargins(); }),
                 System.Windows.Threading.DispatcherPriority.Render);
 #pragma warning restore VSTHRD001 // Avoid legacy thread switching APIs
         }

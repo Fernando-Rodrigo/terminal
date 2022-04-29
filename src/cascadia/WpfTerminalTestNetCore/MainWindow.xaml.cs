@@ -13,7 +13,7 @@ namespace WpfTerminalTestNetCore
     {
         public event EventHandler<TerminalOutputEventArgs> TerminalOutput;
 
-        public void Resize(uint rows, uint columns)
+        public void Resize(int rows, int columns)
         {
             return;
         }

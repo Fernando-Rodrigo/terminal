@@ -820,9 +820,9 @@ void DxFontRenderData::_BuildFontRenderData(const FontInfoDesired& desired, Font
 
     // The scaled size needs to represent the pixel box that each character will fit within for the purposes
     // of hit testing math and other such multiplication/division.
-    COORD coordSize = { 0 };
-    coordSize.X = gsl::narrow<SHORT>(widthExact);
-    coordSize.Y = gsl::narrow_cast<SHORT>(lineSpacing.height);
+    til::size coordSize;
+    coordSize.X = gsl::narrow_cast<til::CoordType>(widthExact);
+    coordSize.Y = gsl::narrow_cast<til::CoordType>(lineSpacing.height);
 
     // Unscaled is for the purposes of re-communicating this font back to the renderer again later.
     // As such, we need to give the same original size parameter back here without padding

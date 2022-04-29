@@ -45,12 +45,12 @@ using namespace Microsoft::Console::Types;
 // - pRectToOr - Add this rectangle to the existing one.
 // Return Value:
 // - <none>
-void VtEngine::_OrRect(_Inout_ SMALL_RECT* const pRectExisting, const SMALL_RECT* const pRectToOr) const
+void VtEngine::_OrRect(_Inout_ til::inclusive_rect* const pRectExisting, const til::inclusive_rect& pRectToOr) const
 {
-    pRectExisting->Left = std::min(pRectExisting->Left, pRectToOr->Left);
-    pRectExisting->Top = std::min(pRectExisting->Top, pRectToOr->Top);
-    pRectExisting->Right = std::max(pRectExisting->Right, pRectToOr->Right);
-    pRectExisting->Bottom = std::max(pRectExisting->Bottom, pRectToOr->Bottom);
+    pRectExisting->Left = std::min(pRectExisting->Left, pRectToOr.Left);
+    pRectExisting->Top = std::min(pRectExisting->Top, pRectToOr.Top);
+    pRectExisting->Right = std::max(pRectExisting->Right, pRectToOr.Right);
+    pRectExisting->Bottom = std::max(pRectExisting->Bottom, pRectToOr.Bottom);
 }
 
 // Method Description:

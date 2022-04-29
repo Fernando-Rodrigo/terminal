@@ -33,7 +33,7 @@ namespace Microsoft.Terminal.Wpf
         /// </summary>
         /// <param name="rows">The number of rows to resize to.</param>
         /// <param name="columns">The number of columns to resize to.</param>
-        void Resize(uint rows, uint columns);
+        void Resize(int rows, int columns);
 
         /// <summary>
         /// Shut down the terminal backend process.

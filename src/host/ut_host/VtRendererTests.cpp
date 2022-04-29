@@ -117,7 +117,7 @@ class Microsoft::Console::Render::VtRendererTest
 
 Viewport VtRendererTest::SetUpViewport()
 {
-    SMALL_RECT view = {};
+    til::inclusive_rect view;
     view.Top = view.Left = 0;
     view.Bottom = 31;
     view.Right = 79;
@@ -235,8 +235,8 @@ void VtRendererTest::Xterm256TestInvalidate()
 
     Log::Comment(NoThrowString().Format(
         L"Make sure that invalidating anything only invalidates that portion"));
-    SMALL_RECT invalid = { 1, 1, 2, 2 };
-    VERIFY_SUCCEEDED(engine->Invalidate(&invalid));
+    til::rect invalid = { 1, 1, 2, 2 };
+    VERIFY_SUCCEEDED(engine->Invalidate(invalid));
     TestPaint(*engine, [&]() {
         VERIFY_IS_TRUE(engine->_invalidMap.one());
         VERIFY_ARE_EQUAL(til::rect{ Viewport::FromExclusive(invalid).ToInclusive() }, *(engine->_invalidMap.begin()));
@@ -244,8 +244,8 @@ void VtRendererTest::Xterm256TestInvalidate()
 
     Log::Comment(NoThrowString().Format(
         L"Make sure that scrolling only invalidates part of the viewport, and sends the right sequences"));
-    COORD scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    til::point scrollDelta = { 0, 1 };
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled one down, only top line is invalid. ----"));
@@ -262,7 +262,7 @@ void VtRendererTest::Xterm256TestInvalidate()
     });
 
     scrollDelta = { 0, 3 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
 
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
@@ -287,7 +287,7 @@ void VtRendererTest::Xterm256TestInvalidate()
     });
 
     scrollDelta = { 0, -1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled one up, only bottom line is invalid. ----"));
@@ -304,7 +304,7 @@ void VtRendererTest::Xterm256TestInvalidate()
     });
 
     scrollDelta = { 0, -3 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled three up, only bottom 3 lines are invalid. ----"));
@@ -332,9 +332,9 @@ void VtRendererTest::Xterm256TestInvalidate()
         L"Multiple scrolls are coalesced"));
 
     scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     scrollDelta = { 0, 2 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled three down, only top 3 lines are invalid. ----"));
@@ -359,11 +359,11 @@ void VtRendererTest::Xterm256TestInvalidate()
     });
 
     scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     Log::Comment(engine->_invalidMap.to_string().c_str());
 
     scrollDelta = { 0, -1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     Log::Comment(engine->_invalidMap.to_string().c_str());
 
     qExpectedInput.push_back("\x1b[2J");
@@ -661,7 +661,7 @@ void VtRendererTest::Xterm256TestCursor()
         std::vector<Cluster> clusters;
         for (size_t i = 0; i < wcslen(line); i++)
         {
-            clusters.emplace_back(std::wstring_view{ &line[i], 1 }, static_cast<size_t>(rgWidths[i]));
+            clusters.emplace_back(std::wstring_view{ &line[i], 1 }, static_cast<til::CoordType>(rgWidths[i]));
         }
 
         VERIFY_SUCCEEDED(engine->PaintBufferLine({ clusters.data(), clusters.size() }, { 1, 1 }, false, false));
@@ -910,8 +910,8 @@ void VtRendererTest::XtermTestInvalidate()
 
     Log::Comment(NoThrowString().Format(
         L"Make sure that invalidating anything only invalidates that portion"));
-    SMALL_RECT invalid = { 1, 1, 2, 2 };
-    VERIFY_SUCCEEDED(engine->Invalidate(&invalid));
+    til::rect invalid = { 1, 1, 2, 2 };
+    VERIFY_SUCCEEDED(engine->Invalidate(invalid));
     TestPaint(*engine, [&]() {
         VERIFY_IS_TRUE(engine->_invalidMap.one());
         VERIFY_ARE_EQUAL(til::rect{ Viewport::FromExclusive(invalid).ToInclusive() }, *(engine->_invalidMap.begin()));
@@ -919,8 +919,8 @@ void VtRendererTest::XtermTestInvalidate()
 
     Log::Comment(NoThrowString().Format(
         L"Make sure that scrolling only invalidates part of the viewport, and sends the right sequences"));
-    COORD scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    til::point scrollDelta = { 0, 1 };
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled one down, only top line is invalid. ----"));
@@ -937,7 +937,7 @@ void VtRendererTest::XtermTestInvalidate()
     });
 
     scrollDelta = { 0, 3 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled three down, only top 3 lines are invalid. ----"));
@@ -961,7 +961,7 @@ void VtRendererTest::XtermTestInvalidate()
     });
 
     scrollDelta = { 0, -1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled one up, only bottom line is invalid. ----"));
@@ -978,7 +978,7 @@ void VtRendererTest::XtermTestInvalidate()
     });
 
     scrollDelta = { 0, -3 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled three up, only bottom 3 lines are invalid. ----"));
@@ -1006,9 +1006,9 @@ void VtRendererTest::XtermTestInvalidate()
         L"Multiple scrolls are coalesced"));
 
     scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     scrollDelta = { 0, 2 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     TestPaint(*engine, [&]() {
         Log::Comment(NoThrowString().Format(
             L"---- Scrolled three down, only top 3 lines are invalid. ----"));
@@ -1033,11 +1033,11 @@ void VtRendererTest::XtermTestInvalidate()
     });
 
     scrollDelta = { 0, 1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     Log::Comment(engine->_invalidMap.to_string().c_str());
 
     scrollDelta = { 0, -1 };
-    VERIFY_SUCCEEDED(engine->InvalidateScroll(&scrollDelta));
+    VERIFY_SUCCEEDED(engine->InvalidateScroll(scrollDelta));
     Log::Comment(engine->_invalidMap.to_string().c_str());
 
     qExpectedInput.push_back("\x1b[2J");
@@ -1290,7 +1290,7 @@ void VtRendererTest::XtermTestCursor()
         std::vector<Cluster> clusters;
         for (size_t i = 0; i < wcslen(line); i++)
         {
-            clusters.emplace_back(std::wstring_view{ &line[i], 1 }, static_cast<size_t>(rgWidths[i]));
+            clusters.emplace_back(std::wstring_view{ &line[i], 1 }, static_cast<til::CoordType>(rgWidths[i]));
         }
 
         VERIFY_SUCCEEDED(engine->PaintBufferLine({ clusters.data(), clusters.size() }, { 1, 1 }, false, false));
@@ -1414,12 +1414,12 @@ void VtRendererTest::TestWrapping()
         std::vector<Cluster> clusters1;
         for (size_t i = 0; i < wcslen(line1); i++)
         {
-            clusters1.emplace_back(std::wstring_view{ &line1[i], 1 }, static_cast<size_t>(rgWidths[i]));
+            clusters1.emplace_back(std::wstring_view{ &line1[i], 1 }, static_cast<til::CoordType>(rgWidths[i]));
         }
         std::vector<Cluster> clusters2;
         for (size_t i = 0; i < wcslen(line2); i++)
         {
-            clusters2.emplace_back(std::wstring_view{ &line2[i], 1 }, static_cast<size_t>(rgWidths[i]));
+            clusters2.emplace_back(std::wstring_view{ &line2[i], 1 }, static_cast<til::CoordType>(rgWidths[i]));
         }
 
         VERIFY_SUCCEEDED(engine->PaintBufferLine({ clusters1.data(), clusters1.size() }, { 0, 0 }, false, false));
@@ -1474,7 +1474,7 @@ void VtRendererTest::TestCursorVisibility()
     auto pfn = std::bind(&VtRendererTest::WriteCallback, this, std::placeholders::_1, std::placeholders::_2);
     engine->SetTestCallback(pfn);
 
-    COORD origin{ 0, 0 };
+    til::point origin{ 0, 0 };
 
     VERIFY_ARE_NOT_EQUAL(origin, engine->_lastText);
 

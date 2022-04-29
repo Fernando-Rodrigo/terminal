@@ -14,12 +14,12 @@ Viewport Terminal::GetViewport() noexcept
     return _GetVisibleViewport();
 }
 
-COORD Terminal::GetTextBufferEndPosition() const noexcept
+til::point Terminal::GetTextBufferEndPosition() const noexcept
 {
     // We use the end line of mutableViewport as the end
     // of the text buffer, it always moves with the written
     // text
-    COORD endPosition{ _GetMutableViewport().Width() - 1, gsl::narrow<short>(ViewEndIndex()) };
+    til::point endPosition{ _GetMutableViewport().Width() - 1, ViewEndIndex() };
     return endPosition;
 }
 
@@ -38,7 +38,7 @@ void Terminal::SetFontInfo(const FontInfo& fontInfo)
     _fontInfo = fontInfo;
 }
 
-COORD Terminal::GetCursorPosition() const noexcept
+til::point Terminal::GetCursorPosition() const noexcept
 {
     const auto& cursor = _activeBuffer().GetCursor();
     return cursor.GetPosition();
@@ -104,7 +104,7 @@ const std::wstring Microsoft::Terminal::Core::Terminal::GetHyperlinkCustomId(uin
 // - The location
 // Return value:
 // - The pattern IDs of the location
-const std::vector<size_t> Terminal::GetPatternId(const COORD location) const noexcept
+const std::vector<size_t> Terminal::GetPatternId(const til::point location) const noexcept
 {
     // Look through our interval tree for this location
     const auto intervals = _patternIntervalTree.findOverlapping(til::point{ location.X + 1, location.Y }, til::point{ location });
@@ -147,7 +147,7 @@ catch (...)
     return {};
 }
 
-void Terminal::SelectNewRegion(const COORD coordStart, const COORD coordEnd)
+void Terminal::SelectNewRegion(const til::point coordStart, const til::point coordEnd)
 {
 #pragma warning(push)
 #pragma warning(disable : 26496) // cpp core checks wants these const, but they're decremented below.
@@ -178,8 +178,8 @@ void Terminal::SelectNewRegion(const COORD coordStart, const COORD coordEnd)
         _NotifyScrollEvent();
     }
 
-    realCoordStart.Y -= gsl::narrow<short>(_VisibleStartIndex());
-    realCoordEnd.Y -= gsl::narrow<short>(_VisibleStartIndex());
+    realCoordStart.Y -= _VisibleStartIndex();
+    realCoordEnd.Y -= _VisibleStartIndex();
 
     SetSelectionAnchor(realCoordStart);
     SetSelectionEnd(realCoordEnd, SelectionExpansion::Char);

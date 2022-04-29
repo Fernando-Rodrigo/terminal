@@ -6,7 +6,7 @@
 #ifdef BUILD_ONECORE_INTERACTIVITY
 // From ntdef.h and winnt.h
 typedef char CCHAR;
-typedef short CSHORT;
+typedef til::CoordType CSHORT;
 typedef ULONG CLONG;
 
 typedef CCHAR* PCCHAR;

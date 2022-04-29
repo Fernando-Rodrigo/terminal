@@ -75,8 +75,8 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
     {
         if (settings)
         {
-            _initialRows = winrt::unbox_value_or<uint32_t>(settings.TryLookup(L"initialRows").try_as<Windows::Foundation::IPropertyValue>(), _initialRows);
-            _initialCols = winrt::unbox_value_or<uint32_t>(settings.TryLookup(L"initialCols").try_as<Windows::Foundation::IPropertyValue>(), _initialCols);
+            _initialRows = winrt::unbox_value_or<til::CoordType>(settings.TryLookup(L"initialRows").try_as<Windows::Foundation::IPropertyValue>(), _initialRows);
+            _initialCols = winrt::unbox_value_or<til::CoordType>(settings.TryLookup(L"initialCols").try_as<Windows::Foundation::IPropertyValue>(), _initialCols);
         }
     }
 
@@ -228,7 +228,7 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
     // - resizes the terminal
     // Arguments:
     // - the new rows/cols values
-    void AzureConnection::Resize(uint32_t rows, uint32_t columns)
+    void AzureConnection::Resize(int32_t rows, int32_t columns)
     try
     {
         if (!_isConnected())

@@ -17,7 +17,7 @@ namespace winrt::Microsoft::TerminalApp::implementation
         ~DebugTapConnection();
         void Start();
         void WriteInput(const hstring& data);
-        void Resize(uint32_t rows, uint32_t columns);
+        void Resize(int32_t rows, int32_t columns);
         void Close();
         winrt::Microsoft::Terminal::TerminalConnection::ConnectionState State() const noexcept;
 

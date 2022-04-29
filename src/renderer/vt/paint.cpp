@@ -126,7 +126,7 @@ using namespace Microsoft::Console::Types;
 // Return Value:
 // - S_OK or suitable HRESULT error from writing pipe.
 [[nodiscard]] HRESULT VtEngine::PaintBufferLine(const gsl::span<const Cluster> clusters,
-                                                const COORD coord,
+                                                const til::point coord,
                                                 const bool /*trimLeft*/,
                                                 const bool /*lineWrapped*/) noexcept
 {
@@ -145,7 +145,7 @@ using namespace Microsoft::Console::Types;
 [[nodiscard]] HRESULT VtEngine::PaintBufferGridLines(const GridLineSet /*lines*/,
                                                      const COLORREF /*color*/,
                                                      const size_t /*cchLine*/,
-                                                     const COORD /*coordTarget*/) noexcept
+                                                     const til::point /*coordTarget*/) noexcept
 {
     return S_OK;
 }
@@ -176,7 +176,7 @@ using namespace Microsoft::Console::Types;
 //  - rect - Rectangle to invert or highlight to make the selection area
 // Return Value:
 // - S_OK
-[[nodiscard]] HRESULT VtEngine::PaintSelection(const SMALL_RECT /*rect*/) noexcept
+[[nodiscard]] HRESULT VtEngine::PaintSelection(const til::rect& /*rect*/) noexcept
 {
     return S_OK;
 }
@@ -339,7 +339,7 @@ using namespace Microsoft::Console::Types;
 // Return Value:
 // - S_OK or suitable HRESULT error from writing pipe.
 [[nodiscard]] HRESULT VtEngine::_PaintAsciiBufferLine(const gsl::span<const Cluster> clusters,
-                                                      const COORD coord) noexcept
+                                                      const til::point coord) noexcept
 {
     try
     {
@@ -348,11 +348,11 @@ using namespace Microsoft::Console::Types;
         _bufferLine.clear();
         _bufferLine.reserve(clusters.size());
 
-        short totalWidth = 0;
+        til::CoordType totalWidth = 0;
         for (const auto& cluster : clusters)
         {
             _bufferLine.append(cluster.GetText());
-            RETURN_IF_FAILED(ShortAdd(totalWidth, gsl::narrow<short>(cluster.GetColumns()), &totalWidth));
+            totalWidth = totalWidth + cluster.GetColumns();
         }
 
         RETURN_IF_FAILED(VtEngine::_WriteTerminalAscii(_bufferLine));
@@ -374,7 +374,7 @@ using namespace Microsoft::Console::Types;
 // Return Value:
 // - S_OK or suitable HRESULT error from writing pipe.
 [[nodiscard]] HRESULT VtEngine::_PaintUtf8BufferLine(const gsl::span<const Cluster> clusters,
-                                                     const COORD coord,
+                                                     const til::point coord,
                                                      const bool lineWrapped) noexcept
 {
     if (coord.Y < _virtualTop)
@@ -384,17 +384,17 @@ using namespace Microsoft::Console::Types;
 
     _bufferLine.clear();
     _bufferLine.reserve(clusters.size());
-    short totalWidth = 0;
+    til::CoordType totalWidth = 0;
     for (const auto& cluster : clusters)
     {
         _bufferLine.append(cluster.GetText());
-        RETURN_IF_FAILED(ShortAdd(totalWidth, static_cast<short>(cluster.GetColumns()), &totalWidth));
+        totalWidth = totalWidth + cluster.GetColumns();
     }
-    const auto cchLine = _bufferLine.size();
+    const auto cchLine = gsl::narrow_cast<til::CoordType>(_bufferLine.size());
 
     auto foundNonspace = false;
-    size_t lastNonSpace = 0;
-    for (size_t i = 0; i < cchLine; i++)
+    til::CoordType lastNonSpace = 0;
+    for (til::CoordType i = 0; i < cchLine; i++)
     {
         if (_bufferLine.at(i) != L'\x20')
         {
@@ -490,7 +490,7 @@ using namespace Microsoft::Console::Types;
     RETURN_IF_FAILED(_MoveCursor(coord));
 
     // Write the actual text string
-    RETURN_IF_FAILED(VtEngine::_WriteTerminalUtf8({ _bufferLine.data(), cchActual }));
+    RETURN_IF_FAILED(VtEngine::_WriteTerminalUtf8({ _bufferLine.data(), gsl::narrow<size_t>(cchActual) }));
 
     // GH#4415, GH#5181
     // If the renderer told us that this was a wrapped line, then mark
@@ -522,7 +522,7 @@ using namespace Microsoft::Console::Types;
     // character of the row.
     if (_lastText.X < _lastViewport.RightExclusive())
     {
-        _lastText.X += static_cast<short>(columnsActual);
+        _lastText.X += columnsActual;
     }
     // GH#1245: If we wrote the exactly last char of the row, then we're in the
     // "delayed EOL wrap" state. Different terminals (conhost, gnome-terminal,
@@ -535,10 +535,10 @@ using namespace Microsoft::Console::Types;
         _delayedEolWrap = true;
     }
 
-    short sNumSpaces;
+    til::CoordType sNumSpaces;
     try
     {
-        sNumSpaces = gsl::narrow<short>(numSpaces);
+        sNumSpaces = numSpaces;
     }
     CATCH_RETURN();
 
@@ -575,7 +575,7 @@ using namespace Microsoft::Console::Types;
             auto spaces = std::wstring(numSpaces, L' ');
             RETURN_IF_FAILED(VtEngine::_WriteTerminalUtf8(spaces));
 
-            _lastText.X += static_cast<short>(numSpaces);
+            _lastText.X += numSpaces;
         }
     }
 

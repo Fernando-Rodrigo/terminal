@@ -22,7 +22,7 @@ Revision History:
 
 #pragma once
 
-constexpr unsigned short CONIME_ATTRCOLOR_SIZE = 8;
+constexpr til::CoordType CONIME_ATTRCOLOR_SIZE = 8;
 
 constexpr BYTE CONIME_CURSOR_RIGHT = 0x10;
 constexpr BYTE CONIME_CURSOR_LEFT = 0x20;

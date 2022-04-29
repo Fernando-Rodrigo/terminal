@@ -175,13 +175,13 @@ namespace Microsoft.Terminal.Wpf
                 this.terminal,
                 Convert.ToInt16(renderSize.Width),
                 Convert.ToInt16(renderSize.Height),
-                out NativeMethods.COORD dimensions);
+                out NativeMethods.TilSize dimensions);
 
-            this.Rows = dimensions.Y;
-            this.Columns = dimensions.X;
+            this.Rows = dimensions.height;
+            this.Columns = dimensions.width;
             this.TerminalRendererSize = renderSize;
 
-            this.Connection?.Resize((uint)dimensions.Y, (uint)dimensions.X);
+            this.Connection?.Resize(dimensions.height, dimensions.width);
         }
 
         /// <summary>
@@ -189,7 +189,7 @@ namespace Microsoft.Terminal.Wpf
         /// </summary>
         /// <param name="rows">Number of rows to show.</param>
         /// <param name="columns">Number of columns to show.</param>
-        internal void Resize(uint rows, uint columns)
+        internal void Resize(int rows, int columns)
         {
             if (rows == 0)
             {
@@ -200,25 +200,24 @@ namespace Microsoft.Terminal.Wpf
                 throw new ArgumentException("Terminal column count cannot be 0.", nameof(columns));
             }
 
-            NativeMethods.SIZE dimensionsInPixels;
-            NativeMethods.COORD dimensions = new NativeMethods.COORD
+            var dimensions = new NativeMethods.TilSize
             {
-                X = (short)columns,
-                Y = (short)rows,
+                width = columns,
+                height = rows,
             };
 
-            NativeMethods.TerminalTriggerResizeWithDimension(this.terminal, dimensions, out dimensionsInPixels);
+            NativeMethods.TerminalTriggerResizeWithDimension(this.terminal, dimensions, out NativeMethods.TilSize dimensionsInPixels);
 
-            this.Columns = dimensions.X;
-            this.Rows = dimensions.Y;
+            this.Columns = dimensions.width;
+            this.Rows = dimensions.height;
 
             this.TerminalRendererSize = new Size()
             {
-                Width = dimensionsInPixels.cx,
-                Height = dimensionsInPixels.cy,
+                Width = dimensionsInPixels.width,
+                Height = dimensionsInPixels.height,
             };
 
-            this.Connection?.Resize((uint)dimensions.Y, (uint)dimensions.X);
+            this.Connection?.Resize(dimensions.height, dimensions.width);
         }
 
         /// <summary>
@@ -226,11 +225,11 @@ namespace Microsoft.Terminal.Wpf
         /// </summary>
         /// <param name="size">DPI scaled size.</param>
         /// <returns>Amount of rows and columns that would fit the given size.</returns>
-        internal (uint columns, uint rows) CalculateRowsAndColumns(Size size)
+        internal (int columns, int rows) CalculateRowsAndColumns(Size size)
         {
-            NativeMethods.TerminalCalculateResize(this.terminal, (short)size.Width, (short)size.Height, out NativeMethods.COORD dimensions);
+            NativeMethods.TerminalCalculateResize(this.terminal, (int)size.Width, (int)size.Height, out NativeMethods.TilSize dimensions);
 
-            return ((uint)dimensions.X, (uint)dimensions.Y);
+            return (dimensions.width, dimensions.height);
         }
 
         /// <summary>
@@ -368,14 +367,14 @@ namespace Microsoft.Terminal.Wpf
                             break;
                         }
 
-                        NativeMethods.COORD dimensions;
+                        NativeMethods.TilSize dimensions;
 
                         if (this.AutoResize)
                         {
-                            NativeMethods.TerminalTriggerResize(this.terminal, (short)windowpos.cx, (short)windowpos.cy, out dimensions);
+                            NativeMethods.TerminalTriggerResize(this.terminal, windowpos.cx, windowpos.cy, out dimensions);
 
-                            this.Columns = dimensions.X;
-                            this.Rows = dimensions.Y;
+                            this.Columns = dimensions.width;
+                            this.Rows = dimensions.height;
 
                             this.TerminalRendererSize = new Size()
                             {
@@ -386,10 +385,10 @@ namespace Microsoft.Terminal.Wpf
                         else
                         {
                             // Calculate the new columns and rows that fit the total control size and alert the control to redraw the margins.
-                            NativeMethods.TerminalCalculateResize(this.terminal, (short)this.TerminalControlSize.Width, (short)this.TerminalControlSize.Height, out dimensions);
+                            NativeMethods.TerminalCalculateResize(this.terminal, (int)this.TerminalControlSize.Width, (int)this.TerminalControlSize.Height, out dimensions);
                         }
 
-                        this.Connection?.Resize((uint)dimensions.Y, (uint)dimensions.X);
+                        this.Connection?.Resize(dimensions.height, dimensions.width);
                         break;
 
                     case NativeMethods.WindowMessage.WM_MOUSEWHEEL:
@@ -405,12 +404,12 @@ namespace Microsoft.Terminal.Wpf
         private void LeftClickHandler(int lParam)
         {
             var altPressed = NativeMethods.GetKeyState((int)NativeMethods.VirtualKey.VK_MENU) < 0;
-            var x = (short)(((int)lParam << 16) >> 16);
-            var y = (short)((int)lParam >> 16);
-            NativeMethods.COORD cursorPosition = new NativeMethods.COORD()
+            var x = lParam & 0xffff;
+            var y = lParam >> 16;
+            var cursorPosition = new NativeMethods.TilPoint()
             {
-                X = x,
-                Y = y,
+                x = x,
+                y = y,
             };
 
             NativeMethods.TerminalStartSelection(this.terminal, cursorPosition, altPressed);
@@ -418,14 +417,14 @@ namespace Microsoft.Terminal.Wpf
 
         private void MouseMoveHandler(int wParam, int lParam)
         {
-            if (((int)wParam & 0x0001) == 1)
+            if ((wParam & 0x0001) == 1)
             {
-                var x = (short)(((int)lParam << 16) >> 16);
-                var y = (short)((int)lParam >> 16);
-                NativeMethods.COORD cursorPosition = new NativeMethods.COORD()
+                var x = lParam & 0xffff;
+                var y = lParam >> 16;
+                var cursorPosition = new NativeMethods.TilPoint()
                 {
-                    X = x,
-                    Y = y,
+                    x = x,
+                    y = y,
                 };
                 NativeMethods.TerminalMoveSelection(this.terminal, cursorPosition);
             }

@@ -11,16 +11,16 @@ const unsigned int PTY_SIGNAL_CLEAR_WINDOW = 2u;
 const unsigned int PTY_SIGNAL_RESIZE_WINDOW = 8u;
 
 HRESULT CreateConPty(const std::wstring& cmdline, // _In_
-                     const unsigned short w, // _In_
-                     const unsigned short h, // _In_
+                     const til::CoordType w, // _In_
+                     const til::CoordType h, // _In_
                      HANDLE* const hInput, // _Out_
                      HANDLE* const hOutput, // _Out_
                      HANDLE* const hSignal, // _Out_
                      PROCESS_INFORMATION* const piPty); // _Out_
 
 bool SignalResizeWindow(const HANDLE hSignal,
-                        const unsigned short w,
-                        const unsigned short h);
+                        const til::CoordType w,
+                        const til::CoordType h);
 
 // Function Description:
 // - Creates a headless conhost in "pty mode" and launches the given commandline
@@ -46,8 +46,8 @@ bool SignalResizeWindow(const HANDLE hSignal,
 // - S_OK if we succeeded, or an appropriate HRESULT for failing format the
 //      commandline or failing to launch the conhost
 __declspec(noinline) inline HRESULT CreateConPty(const std::wstring& cmdline,
-                                                 const unsigned short w,
-                                                 const unsigned short h,
+                                                 const til::CoordType w,
+                                                 const til::CoordType h,
                                                  HANDLE* const hInput,
                                                  HANDLE* const hOutput,
                                                  HANDLE* const hSignal,
@@ -146,9 +146,9 @@ __declspec(noinline) inline HRESULT CreateConPty(const std::wstring& cmdline,
 // - h: The new height of the pty, in characters
 // Return Value:
 // - true if the resize succeeded, else false.
-__declspec(noinline) inline bool SignalResizeWindow(HANDLE hSignal, const unsigned short w, const unsigned short h)
+__declspec(noinline) inline bool SignalResizeWindow(HANDLE hSignal, const til::CoordType w, const til::CoordType h)
 {
-    unsigned short signalPacket[3];
+    til::CoordType signalPacket[3];
     signalPacket[0] = PTY_SIGNAL_RESIZE_WINDOW;
     signalPacket[1] = w;
     signalPacket[2] = h;

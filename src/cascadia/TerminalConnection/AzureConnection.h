@@ -26,14 +26,14 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
 
         void Start();
         void WriteInput(const hstring& data);
-        void Resize(uint32_t rows, uint32_t columns);
+        void Resize(int32_t rows, int32_t columns);
         void Close();
 
         WINRT_CALLBACK(TerminalOutput, TerminalOutputHandler);
 
     private:
-        uint32_t _initialRows{};
-        uint32_t _initialCols{};
+        til::CoordType _initialRows{};
+        til::CoordType _initialCols{};
 
         enum class AzureState
         {

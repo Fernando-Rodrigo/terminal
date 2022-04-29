@@ -106,7 +106,7 @@ using namespace Microsoft::Console::Types;
         //       based on the rectangle that is about to be shown using the nearest monitor.
 
         // Get proposed window rect from create structure
-        auto pcs = (CREATESTRUCTW*)lParam;
+        auto pcs = reinterpret_cast<CREATESTRUCTW*>(lParam);
         RECT rc;
         rc.left = pcs->x;
         rc.top = pcs->y;
@@ -122,19 +122,19 @@ using namespace Microsoft::Console::Types;
         GetDpiForMonitor(hmon, MDT_EFFECTIVE_DPI, &dpix, &dpiy); // If this fails, we'll use the default of 96.
 
         // Pick one and set it to the global DPI.
-        ServiceLocator::LocateGlobals().dpi = (int)dpix;
+        ServiceLocator::LocateGlobals().dpi = gsl::narrow<int>(dpix);
 
         _UpdateSystemMetrics(); // scroll bars and cursors and such.
         s_ReinitializeFontsForDPIChange(); // font sizes.
 
         // Now re-propose the window size with the same origin.
-        RECT rectProposed = { rc.left, rc.top, 0, 0 };
-        _CalculateWindowRect(_pSettings->GetWindowSize(), &rectProposed);
+        til::rect rectProposed = { rc.left, rc.top, 0, 0 };
+        _CalculateWindowRect(_pSettings->GetWindowSize(), rectProposed);
 
-        SetWindowPos(hWnd, nullptr, rectProposed.left, rectProposed.top, RECT_WIDTH(&rectProposed), RECT_HEIGHT(&rectProposed), SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(hWnd, nullptr, rectProposed.left, rectProposed.top, rectProposed.width(), rectProposed.height(), SWP_NOACTIVATE | SWP_NOZORDER);
 
         // Save the proposed window rect dimensions here so we can adjust if the system comes back and changes them on what we asked for.
-        ServiceLocator::LocateWindowMetrics<WindowMetrics>()->ConvertWindowRectToClientRect(&rectProposed);
+        ServiceLocator::LocateWindowMetrics<WindowMetrics>()->ConvertWindowRectToClientRect(rectProposed);
 
         break;
     }
@@ -192,7 +192,7 @@ using namespace Microsoft::Console::Types;
         // GetProposedFont can fail if there's no render engine yet.
         // This can happen if we're headless.
         // Just assume that the font is 1x1 in that case.
-        const auto coordFontProposed = SUCCEEDED(hr) ? fiProposed.GetSize() : COORD({ 1, 1 });
+        const auto coordFontProposed = SUCCEEDED(hr) ? fiProposed.GetSize() : til::size{ 1, 1 };
 
         // Then from that font size, we need to calculate the client area.
         // Then from the client area we need to calculate the window area (using the proposed DPI scalar here as well.)
@@ -204,14 +204,14 @@ using namespace Microsoft::Console::Types;
         const auto coordBufferSize = ScreenInfo.GetTextBuffer().GetSize().Dimensions();
 
         // Now call the math calculation for our proposed size.
-        RECT rectProposed = { 0 };
-        s_CalculateWindowRect(coordWindowInChars, dpiProposed, coordFontProposed, coordBufferSize, hWnd, &rectProposed);
+        til::rect rectProposed;
+        s_CalculateWindowRect(coordWindowInChars, dpiProposed, coordFontProposed, coordBufferSize, hWnd, rectProposed);
 
         // Prepare where we're going to keep our final suggestion.
         const auto pSuggestionSize = (SIZE*)lParam;
 
-        pSuggestionSize->cx = RECT_WIDTH(&rectProposed);
-        pSuggestionSize->cy = RECT_HEIGHT(&rectProposed);
+        pSuggestionSize->cx = rectProposed.width();
+        pSuggestionSize->cy = rectProposed.height();
 
         // Format our final suggestion for consumption.
         UnlockConsole();
@@ -225,14 +225,14 @@ using namespace Microsoft::Console::Types;
         _UpdateSystemMetrics();
         s_ReinitializeFontsForDPIChange();
 
-        // This is the RECT that the system suggests.
-        const auto prcNewScale = (RECT*)lParam;
+        // This is the til::rect that the system suggests.
+        const auto prcNewScale = (til::rect&)lParam;
         SetWindowPos(hWnd,
                      HWND_TOP,
-                     prcNewScale->left,
-                     prcNewScale->top,
-                     RECT_WIDTH(prcNewScale),
-                     RECT_HEIGHT(prcNewScale),
+                     prcNewScale.left,
+                     prcNewScale.top,
+                     prcNewScale.width(),
+                     prcNewScale.height(),
                      SWP_NOZORDER | SWP_NOACTIVATE);
 
         _fInDPIChange = false;
@@ -356,14 +356,14 @@ using namespace Microsoft::Console::Types;
         if (!WI_IsFlagSet(lpwpos->flags, SWP_NOSIZE))
         {
             // Figure out the suggested dimensions
-            RECT rcSuggested;
+            til::rect rcSuggested;
             rcSuggested.left = lpwpos->x;
             rcSuggested.top = lpwpos->y;
             rcSuggested.right = rcSuggested.left + lpwpos->cx;
             rcSuggested.bottom = rcSuggested.top + lpwpos->cy;
-            SIZE szSuggested;
-            szSuggested.cx = RECT_WIDTH(&rcSuggested);
-            szSuggested.cy = RECT_HEIGHT(&rcSuggested);
+            til::size szSuggested;
+            szSuggested.cx = rcSuggested.width();
+            szSuggested.cy = rcSuggested.height();
 
             // Figure out the current dimensions for comparison.
             auto rcCurrent = GetWindowRect();
@@ -372,7 +372,7 @@ using namespace Microsoft::Console::Types;
             auto fIsEdgeResize = false;
             {
                 // We can only be edge resizing if our existing rectangle wasn't empty. If it was empty, we're doing the initial create.
-                if (!IsRectEmpty(&rcCurrent))
+                if (rcCurrent)
                 {
                     // If one or two sides are changing, we're being edge resized.
                     unsigned int cSidesChanging = 0;
@@ -407,18 +407,18 @@ using namespace Microsoft::Console::Types;
                 // Find the related monitor, the maximum pixel size,
                 // and the dpi for the suggested rect.
                 UINT dpiOfMaximum;
-                RECT rcMaximum;
+                til::rect rcMaximum;
 
                 if (fIsEdgeResize)
                 {
                     // If someone's dragging from the edge to resize in one direction, we want to make sure we never grow past the current monitor.
-                    rcMaximum = ServiceLocator::LocateWindowMetrics<WindowMetrics>()->GetMaxWindowRectInPixels(&rcCurrent, &dpiOfMaximum);
+                    rcMaximum = ServiceLocator::LocateWindowMetrics<WindowMetrics>()->GetMaxWindowRectInPixels(rcCurrent, &dpiOfMaximum);
                 }
                 else
                 {
                     // In other circumstances, assume we're snapping around or some other jump (TS).
                     // Just do whatever we're told using the new suggestion as the restriction monitor.
-                    rcMaximum = ServiceLocator::LocateWindowMetrics<WindowMetrics>()->GetMaxWindowRectInPixels(&rcSuggested, &dpiOfMaximum);
+                    rcMaximum = ServiceLocator::LocateWindowMetrics<WindowMetrics>()->GetMaxWindowRectInPixels(rcSuggested, &dpiOfMaximum);
                 }
 
                 // Only apply the maximum size restriction if the current DPI matches the DPI of the
@@ -429,15 +429,15 @@ using namespace Microsoft::Console::Types;
                 // or worse yet, keep it from moving entirely. We'll get a WM_DPICHANGED,
                 // resize the window, and then process the restriction in a few window messages.
                 if (((int)dpiOfMaximum == g.dpi) &&
-                    ((szSuggested.cx > RECT_WIDTH(&rcMaximum)) || (szSuggested.cy > RECT_HEIGHT(&rcMaximum))))
+                    ((szSuggested.cx > rcMaximum.width()) || (szSuggested.cy > rcMaximum.height())))
                 {
-                    lpwpos->cx = std::min(RECT_WIDTH(&rcMaximum), szSuggested.cx);
-                    lpwpos->cy = std::min(RECT_HEIGHT(&rcMaximum), szSuggested.cy);
+                    lpwpos->cx = std::min(rcMaximum.width(), szSuggested.cx);
+                    lpwpos->cy = std::min(rcMaximum.height(), szSuggested.cy);
 
                     // We usually add SWP_NOMOVE so that if the user is dragging the left or top edge
                     // and hits the restriction, then the window just stops growing, it doesn't
                     // move with the mouse. However during DPI changes, we need to allow a move
-                    // because the RECT from WM_DPICHANGED has been specially crafted by win32k
+                    // because the til::rect from WM_DPICHANGED has been specially crafted by win32k
                     // to keep the mouse cursor from jumping away from the caption bar.
                     if (!_fInDPIChange)
                     {
@@ -650,7 +650,7 @@ using namespace Microsoft::Console::Types;
 
         if (isMouseWheel || isMouseHWheel)
         {
-            auto wheelDelta = (short)HIWORD(wParam);
+            auto wheelDelta = (int16_t)HIWORD(wParam);
             auto hasShift = (wParam & MK_SHIFT) ? true : false;
 
             Scrolling::s_HandleMouseWheel(isMouseWheel,
@@ -795,15 +795,15 @@ void Window::_HandleWindowPosChanged(const LPARAM lParam)
     if (!ScreenInfo.ResizingWindow && (lpWindowPos->cx || lpWindowPos->cy) && !IsIconic(hWnd))
     {
         // calculate the dimensions for the newly proposed window rectangle
-        RECT rcNew;
-        s_ConvertWindowPosToWindowRect(lpWindowPos, &rcNew);
-        ServiceLocator::LocateWindowMetrics<WindowMetrics>()->ConvertWindowRectToClientRect(&rcNew);
+        til::rect rcNew;
+        s_ConvertWindowPosToWindowRect(lpWindowPos, rcNew);
+        ServiceLocator::LocateWindowMetrics<WindowMetrics>()->ConvertWindowRectToClientRect(rcNew);
 
         // If the window is not being resized, including a DPI change, then
         // don't do anything except update our windowrect
         if (!WI_IsFlagSet(lpWindowPos->flags, SWP_NOSIZE) || _fInDPIChange)
         {
-            ScreenInfo.ProcessResizeWindow(&rcNew, &_rcClientLast);
+            ScreenInfo.ProcessResizeWindow(rcNew, _rcClientLast);
         }
 
         // now that operations are complete, save the new rectangle size as the last seen value
@@ -840,8 +840,7 @@ void Window::_HandleWindowPosChanged(const LPARAM lParam)
     {
         // In lieu of actually painting right now, we're just going to aggregate this information in the renderer
         // and let it paint whenever it feels appropriate.
-        const auto rcUpdate = ps.rcPaint;
-        ServiceLocator::LocateGlobals().pRender->TriggerSystemRedraw(&rcUpdate);
+        ServiceLocator::LocateGlobals().pRender->TriggerSystemRedraw(til::rect{ ps.rcPaint });
     }
 
     LOG_IF_WIN32_BOOL_FALSE(EndPaint(hwnd, &ps));

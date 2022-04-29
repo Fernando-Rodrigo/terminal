@@ -38,7 +38,7 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
         _TerminalOutputHandlers(prettyPrint.str());
     }
 
-    void EchoConnection::Resize(uint32_t /*rows*/, uint32_t /*columns*/) noexcept
+    void EchoConnection::Resize(int32_t /*rows*/, int32_t /*columns*/) noexcept
     {
     }
 

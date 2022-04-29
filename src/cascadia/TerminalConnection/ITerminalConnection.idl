@@ -21,7 +21,7 @@ namespace Microsoft.Terminal.TerminalConnection
 
         void Start();
         void WriteInput(String data);
-        void Resize(UInt32 rows, UInt32 columns);
+        void Resize(Int32 rows, Int32 columns);
         void Close();
 
         event TerminalOutputHandler TerminalOutput;

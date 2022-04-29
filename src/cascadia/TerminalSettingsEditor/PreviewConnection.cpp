@@ -32,7 +32,7 @@ namespace winrt::Microsoft::Terminal::Settings::Editor::implementation
     {
     }
 
-    void PreviewConnection::Resize(uint32_t /*rows*/, uint32_t /*columns*/) noexcept
+    void PreviewConnection::Resize(int32_t /*rows*/, int32_t /*columns*/) noexcept
     {
     }
 

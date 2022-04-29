@@ -47,12 +47,10 @@ SCREEN_INFORMATION::SCREEN_INFORMATION(
     _pConsoleWindowMetrics{ pMetrics },
     _pAccessibilityNotifier{ pNotifier },
     _stateMachine{ nullptr },
-    _scrollMargins{ Viewport::FromCoord({ 0 }) },
+    _scrollMargins{ Viewport::Empty() },
     _viewport(Viewport::Empty()),
     _psiAlternateBuffer{ nullptr },
     _psiMainBuffer{ nullptr },
-    _rcAltSavedClientNew{ 0 },
-    _rcAltSavedClientOld{ 0 },
     _fAltWindowChanged{ false },
     _PopupAttributes{ popupAttributes },
     _virtualBottom{ 0 },
@@ -89,9 +87,9 @@ SCREEN_INFORMATION::~SCREEN_INFORMATION()
 // - nFont - the initial font to generate text with.
 // - dwScreenBufferSize - the initial size of the screen buffer (in rows/columns).
 // Return Value:
-[[nodiscard]] NTSTATUS SCREEN_INFORMATION::CreateInstance(_In_ COORD coordWindowSize,
+[[nodiscard]] NTSTATUS SCREEN_INFORMATION::CreateInstance(_In_ til::size coordWindowSize,
                                                           const FontInfo fontInfo,
-                                                          _In_ COORD coordScreenBufferSize,
+                                                          _In_ til::size coordScreenBufferSize,
                                                           const TextAttribute defaultAttributes,
                                                           const TextAttribute popupAttributes,
                                                           const UINT uiCursorSize,
@@ -346,11 +344,11 @@ bool SCREEN_INFORMATION::IsActiveScreenBuffer() const
 // - MaximumWindowSize - Pointer to location in which to store maximum window size.
 // Return Value:
 // - None
-void SCREEN_INFORMATION::GetScreenBufferInformation(_Out_ PCOORD pcoordSize,
-                                                    _Out_ PCOORD pcoordCursorPosition,
-                                                    _Out_ PSMALL_RECT psrWindow,
+void SCREEN_INFORMATION::GetScreenBufferInformation(_Out_ til::size* pcoordSize,
+                                                    _Out_ til::point* pcoordCursorPosition,
+                                                    _Out_ til::inclusive_rect* psrWindow,
                                                     _Out_ PWORD pwAttributes,
-                                                    _Out_ PCOORD pcoordMaximumWindowSize,
+                                                    _Out_ til::size* pcoordMaximumWindowSize,
                                                     _Out_ PWORD pwPopupAttributes,
                                                     _Out_writes_(COLOR_TABLE_SIZE) LPCOLORREF lpColorTable) const
 {
@@ -378,8 +376,8 @@ void SCREEN_INFORMATION::GetScreenBufferInformation(_Out_ PCOORD pcoordSize,
 // Arguments:
 // - coordFontSize - The font size to use for calculation if a screen buffer is not yet attached.
 // Return Value:
-// - COORD containing the width and height representing the minimum character grid that can be rendered in the window.
-COORD SCREEN_INFORMATION::GetMinWindowSizeInCharacters(const COORD coordFontSize /*= { 1, 1 }*/) const
+// - til::size containing the width and height representing the minimum character grid that can be rendered in the window.
+til::size SCREEN_INFORMATION::GetMinWindowSizeInCharacters(const til::size coordFontSize /*= { 1, 1 }*/) const
 {
     FAIL_FAST_IF(coordFontSize.X == 0);
     FAIL_FAST_IF(coordFontSize.Y == 0);
@@ -388,9 +386,9 @@ COORD SCREEN_INFORMATION::GetMinWindowSizeInCharacters(const COORD coordFontSize
     const auto rcWindowInPixels = _pConsoleWindowMetrics->GetMinClientRectInPixels();
 
     // assign the pixel widths and heights to the final output
-    COORD coordClientAreaSize;
-    coordClientAreaSize.X = (SHORT)RECT_WIDTH(&rcWindowInPixels);
-    coordClientAreaSize.Y = (SHORT)RECT_HEIGHT(&rcWindowInPixels);
+    til::size coordClientAreaSize;
+    coordClientAreaSize.X = rcWindowInPixels.width();
+    coordClientAreaSize.Y = rcWindowInPixels.height();
 
     // now retrieve the font size and divide the pixel counts into character counts
     auto coordFont = coordFontSize; // by default, use the size we were given
@@ -416,9 +414,9 @@ COORD SCREEN_INFORMATION::GetMinWindowSizeInCharacters(const COORD coordFontSize
 // Arguments:
 // - coordFontSize - The font size to use for calculation if a screen buffer is not yet attached.
 // Return Value:
-// - COORD containing the width and height representing the largest character
+// - til::size containing the width and height representing the largest character
 //      grid that can be rendered on the current monitor and/or from the current buffer size.
-COORD SCREEN_INFORMATION::GetMaxWindowSizeInCharacters(const COORD coordFontSize /*= { 1, 1 }*/) const
+til::size SCREEN_INFORMATION::GetMaxWindowSizeInCharacters(const til::size coordFontSize /*= { 1, 1 }*/) const
 {
     FAIL_FAST_IF(coordFontSize.X == 0);
     FAIL_FAST_IF(coordFontSize.Y == 0);
@@ -448,9 +446,9 @@ COORD SCREEN_INFORMATION::GetMaxWindowSizeInCharacters(const COORD coordFontSize
 // Arguments:
 // - coordFontSize - The font size to use for calculation if a screen buffer is not yet attached.
 // Return Value:
-// - COORD containing the width and height representing the largest character
+// - til::size containing the width and height representing the largest character
 //      grid that can be rendered on the current monitor with the maximum size window.
-COORD SCREEN_INFORMATION::GetLargestWindowSizeInCharacters(const COORD coordFontSize /*= { 1, 1 }*/) const
+til::size SCREEN_INFORMATION::GetLargestWindowSizeInCharacters(const til::size coordFontSize /*= { 1, 1 }*/) const
 {
     FAIL_FAST_IF(coordFontSize.X == 0);
     FAIL_FAST_IF(coordFontSize.Y == 0);
@@ -458,9 +456,9 @@ COORD SCREEN_INFORMATION::GetLargestWindowSizeInCharacters(const COORD coordFont
     const auto rcClientInPixels = _pConsoleWindowMetrics->GetMaxClientRectInPixels();
 
     // first assign the pixel widths and heights to the final output
-    COORD coordClientAreaSize;
-    coordClientAreaSize.X = (SHORT)RECT_WIDTH(&rcClientInPixels);
-    coordClientAreaSize.Y = (SHORT)RECT_HEIGHT(&rcClientInPixels);
+    til::size coordClientAreaSize;
+    coordClientAreaSize.X = rcClientInPixels.width();
+    coordClientAreaSize.Y = rcClientInPixels.height();
 
     // now retrieve the font size and divide the pixel counts into character counts
     auto coordFont = coordFontSize; // by default, use the size we were given
@@ -480,21 +478,21 @@ COORD SCREEN_INFORMATION::GetLargestWindowSizeInCharacters(const COORD coordFont
     return coordClientAreaSize;
 }
 
-COORD SCREEN_INFORMATION::GetScrollBarSizesInCharacters() const
+til::size SCREEN_INFORMATION::GetScrollBarSizesInCharacters() const
 {
     auto coordFont = GetScreenFontSize();
 
     auto vScrollSize = ServiceLocator::LocateGlobals().sVerticalScrollSize;
     auto hScrollSize = ServiceLocator::LocateGlobals().sHorizontalScrollSize;
 
-    COORD coordBarSizes;
+    til::size coordBarSizes;
     coordBarSizes.X = (vScrollSize / coordFont.X) + ((vScrollSize % coordFont.X) != 0 ? 1 : 0);
     coordBarSizes.Y = (hScrollSize / coordFont.Y) + ((hScrollSize % coordFont.Y) != 0 ? 1 : 0);
 
     return coordBarSizes;
 }
 
-void SCREEN_INFORMATION::GetRequiredConsoleSizeInPixels(_Out_ PSIZE const pRequiredSize) const
+void SCREEN_INFORMATION::GetRequiredConsoleSizeInPixels(_Out_ til::size* const pRequiredSize) const
 {
     const auto coordFontSize = GetCurrentFont().GetSize();
 
@@ -503,20 +501,20 @@ void SCREEN_INFORMATION::GetRequiredConsoleSizeInPixels(_Out_ PSIZE const pRequi
     pRequiredSize->cy = GetViewport().Height() * coordFontSize.Y;
 }
 
-COORD SCREEN_INFORMATION::GetScreenFontSize() const
+til::size SCREEN_INFORMATION::GetScreenFontSize() const
 {
     // If we have no renderer, then we don't really need any sort of pixel math. so the "font size" for the scale factor
     // (which is used almost everywhere around the code as * and / calls) should just be 1,1 so those operations will do
     // effectively nothing.
-    COORD coordRet = { 1, 1 };
+    til::size coordRet = { 1, 1 };
     if (ServiceLocator::LocateGlobals().pRender != nullptr)
     {
         coordRet = GetCurrentFont().GetSize();
     }
 
     // For sanity's sake, make sure not to leak 0 out as a possible value. These values are used in division operations.
-    coordRet.X = std::max(coordRet.X, 1i16);
-    coordRet.Y = std::max(coordRet.Y, 1i16);
+    coordRet.X = std::max(coordRet.X, 1);
+    coordRet.Y = std::max(coordRet.Y, 1);
 
     return coordRet;
 }
@@ -585,10 +583,10 @@ bool SCREEN_INFORMATION::HasAccessibilityEventing() const noexcept
 // to aggregate drawing metadata to determine whether or not to use PolyTextOut.
 // After the Nov 2015 graphics refactor, the metadata drawing flag calculation is no longer necessary.
 // This now only notifies accessibility apps of a change.
-void SCREEN_INFORMATION::NotifyAccessibilityEventing(const short sStartX,
-                                                     const short sStartY,
-                                                     const short sEndX,
-                                                     const short sEndY)
+void SCREEN_INFORMATION::NotifyAccessibilityEventing(const til::CoordType sStartX,
+                                                     const til::CoordType sStartY,
+                                                     const til::CoordType sEndX,
+                                                     const til::CoordType sEndY)
 {
     if (!_pAccessibilityNotifier)
     {
@@ -660,7 +658,7 @@ VOID SCREEN_INFORMATION::UpdateScrollBars()
 VOID SCREEN_INFORMATION::InternalUpdateScrollBars()
 {
     auto& gci = ServiceLocator::LocateGlobals().getConsoleInformation();
-    const auto pWindow = ServiceLocator::LocateConsoleWindow();
+    IConsoleWindow* const pWindow = ServiceLocator::LocateConsoleWindow();
 
     WI_ClearFlag(gci.Flags, CONSOLE_UPDATING_SCROLL_BARS);
 
@@ -711,7 +709,7 @@ VOID SCREEN_INFORMATION::InternalUpdateScrollBars()
 // - pcoordSize - Requested viewport width/heights in characters
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::SetViewportSize(const COORD* const pcoordSize)
+void SCREEN_INFORMATION::SetViewportSize(const til::size& pcoordSize)
 {
     // If this is the alt buffer or a VT I/O buffer:
     //      first resize ourselves to match the new viewport
@@ -719,7 +717,7 @@ void SCREEN_INFORMATION::SetViewportSize(const COORD* const pcoordSize)
     //      (if necessary)
     if (_IsInPtyMode())
     {
-        LOG_IF_FAILED(ResizeScreenBuffer(*pcoordSize, TRUE));
+        LOG_IF_FAILED(ResizeScreenBuffer(pcoordSize, TRUE));
 
         if (_psiMainBuffer)
         {
@@ -749,13 +747,13 @@ void SCREEN_INFORMATION::SetViewportSize(const COORD* const pcoordSize)
 // - STATUS_INVALID_PARAMETER if the new viewport would be outside the buffer,
 //      else STATUS_SUCCESS
 [[nodiscard]] NTSTATUS SCREEN_INFORMATION::SetViewportOrigin(const bool fAbsolute,
-                                                             const COORD coordWindowOrigin,
+                                                             const til::point coordWindowOrigin,
                                                              const bool updateBottom)
 {
     // calculate window size
     auto WindowSize = _viewport.Dimensions();
 
-    SMALL_RECT NewWindow;
+    til::inclusive_rect NewWindow;
     // if relative coordinates, figure out absolute coords.
     if (!fAbsolute)
     {
@@ -775,8 +773,8 @@ void SCREEN_INFORMATION::SetViewportSize(const COORD* const pcoordSize)
         NewWindow.Left = coordWindowOrigin.X;
         NewWindow.Top = coordWindowOrigin.Y;
     }
-    NewWindow.Right = (SHORT)(NewWindow.Left + WindowSize.X - 1);
-    NewWindow.Bottom = (SHORT)(NewWindow.Top + WindowSize.Y - 1);
+    NewWindow.Right = NewWindow.Left + WindowSize.X - 1;
+    NewWindow.Bottom = NewWindow.Top + WindowSize.Y - 1;
 
     const auto& gci = ServiceLocator::LocateGlobals().getConsoleInformation();
 
@@ -786,7 +784,7 @@ void SCREEN_INFORMATION::SetViewportSize(const COORD* const pcoordSize)
     //  Instead move us to the bottom of the logical viewport.
     if (gci.IsTerminalScrolling() && !updateBottom && NewWindow.Bottom > _virtualBottom)
     {
-        const short delta = _virtualBottom - NewWindow.Bottom;
+        const auto delta = _virtualBottom - NewWindow.Bottom;
         NewWindow.Top += delta;
         NewWindow.Bottom += delta;
     }
@@ -859,16 +857,16 @@ bool SCREEN_INFORMATION::PostUpdateWindowSize() const
 // - prcClientOld - Client rectangle in pixels before this update
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
-                                             const RECT* const prcClientOld)
+void SCREEN_INFORMATION::ProcessResizeWindow(const til::rect& prcClientNew,
+                                             const til::rect& prcClientOld)
 {
     if (_IsAltBuffer())
     {
         // Stash away the size of the window, we'll need to do this to the main when we pop back
         //  We set this on the main, so that main->alt(resize)->alt keeps the resize
         _psiMainBuffer->_fAltWindowChanged = true;
-        _psiMainBuffer->_rcAltSavedClientNew = *prcClientNew;
-        _psiMainBuffer->_rcAltSavedClientOld = *prcClientOld;
+        _psiMainBuffer->_rcAltSavedClientNew = prcClientNew;
+        _psiMainBuffer->_rcAltSavedClientOld = prcClientOld;
     }
 
     // 1.a In some modes, the screen buffer size needs to change on window size,
@@ -881,12 +879,12 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
     LOG_IF_FAILED(adjustBufferSizeResult);
 
     // 2. Now calculate how large the new viewport should be
-    COORD coordViewportSize;
+    til::size coordViewportSize;
     _CalculateViewportSize(prcClientNew, &coordViewportSize);
 
     // 3. And adjust the existing viewport to match the same dimensions.
     //      The old/new comparison is to figure out which side the window was resized from.
-    _AdjustViewportSize(prcClientNew, prcClientOld, &coordViewportSize);
+    _AdjustViewportSize(prcClientNew, prcClientOld, coordViewportSize);
 
     // 1.b  If we did actually change the buffer size, then we need to show the
     //      commandline again. We hid it during _AdjustScreenBuffer, but we
@@ -919,9 +917,9 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
 // - pcoordClientNewCharacters - The maximum number of characters X by Y that can be displayed in the window with the given backing buffer.
 // Return Value:
 // - S_OK if math was successful. Check with SUCCEEDED/FAILED macro.
-[[nodiscard]] HRESULT SCREEN_INFORMATION::_AdjustScreenBufferHelper(const RECT* const prcClientNew,
-                                                                    const COORD coordBufferOld,
-                                                                    _Out_ COORD* const pcoordClientNewCharacters)
+[[nodiscard]] HRESULT SCREEN_INFORMATION::_AdjustScreenBufferHelper(const til::rect& prcClientNew,
+                                                                    const til::size coordBufferOld,
+                                                                    _Out_ til::size* const pcoordClientNewCharacters)
 {
     // Get the font size ready.
     const auto coordFontSize = GetScreenFontSize();
@@ -930,14 +928,14 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
     RETURN_HR_IF(E_NOT_VALID_STATE, 0 == coordFontSize.X || 0 == coordFontSize.Y);
 
     // Find out how much client space we have to work with in the new area.
-    SIZE sizeClientNewPixels = { 0 };
-    sizeClientNewPixels.cx = RECT_WIDTH(prcClientNew);
-    sizeClientNewPixels.cy = RECT_HEIGHT(prcClientNew);
+    til::size sizeClientNewPixels;
+    sizeClientNewPixels.cx = prcClientNew.width();
+    sizeClientNewPixels.cy = prcClientNew.height();
 
     // Subtract out scroll bar space if scroll bars will be necessary.
     auto fIsHorizontalVisible = false;
     auto fIsVerticalVisible = false;
-    s_CalculateScrollbarVisibility(prcClientNew, &coordBufferOld, &coordFontSize, &fIsHorizontalVisible, &fIsVerticalVisible);
+    s_CalculateScrollbarVisibility(prcClientNew, coordBufferOld, coordFontSize, &fIsHorizontalVisible, &fIsVerticalVisible);
 
     if (fIsHorizontalVisible)
     {
@@ -950,12 +948,12 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
     }
 
     // Now with the scroll bars removed, calculate how many characters could fit into the new window area.
-    pcoordClientNewCharacters->X = (SHORT)(sizeClientNewPixels.cx / coordFontSize.X);
-    pcoordClientNewCharacters->Y = (SHORT)(sizeClientNewPixels.cy / coordFontSize.Y);
+    pcoordClientNewCharacters->X = (til::CoordType)(sizeClientNewPixels.cx / coordFontSize.X);
+    pcoordClientNewCharacters->Y = (til::CoordType)(sizeClientNewPixels.cy / coordFontSize.Y);
 
     // If the new client is too tiny, our viewport will be 1x1.
-    pcoordClientNewCharacters->X = std::max(pcoordClientNewCharacters->X, 1i16);
-    pcoordClientNewCharacters->Y = std::max(pcoordClientNewCharacters->Y, 1i16);
+    pcoordClientNewCharacters->X = std::max(pcoordClientNewCharacters->X, 1);
+    pcoordClientNewCharacters->Y = std::max(pcoordClientNewCharacters->Y, 1);
     return S_OK;
 }
 
@@ -967,7 +965,7 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
 // - prcClientNew - Client rectangle in pixels after this update
 // Return Value:
 // - appropriate HRESULT
-[[nodiscard]] HRESULT SCREEN_INFORMATION::_AdjustScreenBuffer(const RECT* const prcClientNew)
+[[nodiscard]] HRESULT SCREEN_INFORMATION::_AdjustScreenBuffer(const til::rect& prcClientNew)
 {
     const auto& gci = ServiceLocator::LocateGlobals().getConsoleInformation();
     // Prepare the buffer sizes.
@@ -976,7 +974,7 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
     auto coordBufferSizeNew = coordBufferSizeOld;
 
     // First figure out how many characters we could fit into the new window given the old buffer size
-    COORD coordClientNewCharacters;
+    til::size coordClientNewCharacters;
 
     RETURN_IF_FAILED(_AdjustScreenBufferHelper(prcClientNew, coordBufferSizeOld, &coordClientNewCharacters));
 
@@ -997,8 +995,8 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
         // The alt buffer always wants to be exactly the size of the screen, never more or less.
         // This prevents scrollbars when you increase the alt buffer size, then decrease it.
         // Can't have a buffer dimension of 0 - that'll cause divide by zeros in the future.
-        coordBufferSizeNew.X = std::max(coordClientNewCharacters.X, 1i16);
-        coordBufferSizeNew.Y = std::max(coordClientNewCharacters.Y, 1i16);
+        coordBufferSizeNew.X = std::max(coordClientNewCharacters.X, 1);
+        coordBufferSizeNew.Y = std::max(coordClientNewCharacters.Y, 1);
     }
     else
     {
@@ -1015,8 +1013,7 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
     auto hr = S_FALSE;
 
     // Only attempt to modify the buffer if something changed. Expensive operation.
-    if (coordBufferSizeOld.X != coordBufferSizeNew.X ||
-        coordBufferSizeOld.Y != coordBufferSizeNew.Y)
+    if (coordBufferSizeOld != coordBufferSizeNew)
     {
         auto& commandLine = CommandLine::Instance();
 
@@ -1050,20 +1047,20 @@ void SCREEN_INFORMATION::ProcessResizeWindow(const RECT* const prcClientNew,
 // - pcoordSize - Filled with the width/height to which the viewport should be set.
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::_CalculateViewportSize(const RECT* const prcClientArea, _Out_ COORD* const pcoordSize)
+void SCREEN_INFORMATION::_CalculateViewportSize(const til::rect& prcClientArea, _Out_ til::size* const pcoordSize)
 {
     const auto coordBufferSize = GetBufferSize().Dimensions();
     const auto coordFontSize = GetScreenFontSize();
 
-    SIZE sizeClientPixels = { 0 };
-    sizeClientPixels.cx = RECT_WIDTH(prcClientArea);
-    sizeClientPixels.cy = RECT_HEIGHT(prcClientArea);
+    til::size sizeClientPixels;
+    sizeClientPixels.cx = prcClientArea.width();
+    sizeClientPixels.cy = prcClientArea.height();
 
     bool fIsHorizontalVisible;
     bool fIsVerticalVisible;
     s_CalculateScrollbarVisibility(prcClientArea,
-                                   &coordBufferSize,
-                                   &coordFontSize,
+                                   coordBufferSize,
+                                   coordFontSize,
                                    &fIsHorizontalVisible,
                                    &fIsVerticalVisible);
 
@@ -1077,8 +1074,8 @@ void SCREEN_INFORMATION::_CalculateViewportSize(const RECT* const prcClientArea,
         sizeClientPixels.cx -= ServiceLocator::LocateGlobals().sVerticalScrollSize;
     }
 
-    pcoordSize->X = (SHORT)(sizeClientPixels.cx / coordFontSize.X);
-    pcoordSize->Y = (SHORT)(sizeClientPixels.cy / coordFontSize.Y);
+    pcoordSize->X = (til::CoordType)(sizeClientPixels.cx / coordFontSize.X);
+    pcoordSize->Y = (til::CoordType)(sizeClientPixels.cy / coordFontSize.Y);
 }
 
 // Routine Description:
@@ -1090,12 +1087,12 @@ void SCREEN_INFORMATION::_CalculateViewportSize(const RECT* const prcClientArea,
 // - fResizeFromBottom - If false, will trim/add to top of viewport first. If true, will trim/add to left.
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
+void SCREEN_INFORMATION::_InternalSetViewportSize(const til::size& pcoordSize,
                                                   const bool fResizeFromTop,
                                                   const bool fResizeFromLeft)
 {
-    const short DeltaX = pcoordSize->X - _viewport.Width();
-    const short DeltaY = pcoordSize->Y - _viewport.Height();
+    const auto DeltaX = pcoordSize.X - _viewport.Width();
+    const auto DeltaY = pcoordSize.Y - _viewport.Height();
     const auto coordScreenBufferSize = GetBufferSize().Dimensions();
 
     // do adjustments on a copy that's easily manipulated.
@@ -1106,7 +1103,7 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
     if (fResizeFromLeft)
     {
         // we're being horizontally sized from the left border
-        const SHORT sLeftProposed = (srNewViewport.Left - DeltaX);
+        const auto sLeftProposed = srNewViewport.Left - DeltaX;
         if (sLeftProposed >= 0)
         {
             // there's enough room in the backlog to just expand left
@@ -1118,13 +1115,13 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
             // content above as we can, but we can't show more
             // than the left of the window
             srNewViewport.Left = 0;
-            srNewViewport.Right += (SHORT)abs(sLeftProposed);
+            srNewViewport.Right += (til::CoordType)abs(sLeftProposed);
         }
     }
     else
     {
         // we're being horizontally sized from the right border
-        const SHORT sRightProposed = (srNewViewport.Right + DeltaX);
+        const auto sRightProposed = (srNewViewport.Right + DeltaX);
         if (sRightProposed <= (coordScreenBufferSize.X - 1))
         {
             srNewViewport.Right += DeltaX;
@@ -1138,7 +1135,7 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
 
     if (fResizeFromTop)
     {
-        const SHORT sTopProposed = (srNewViewport.Top - DeltaY);
+        const auto sTopProposed = (srNewViewport.Top - DeltaY);
         // we're being vertically sized from the top border
         if (sTopProposed >= 0)
         {
@@ -1169,13 +1166,13 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
             // content above as we can, but we can't show more
             // than the top of the window
             srNewViewport.Top = 0;
-            srNewViewport.Bottom += (SHORT)abs(sTopProposed);
+            srNewViewport.Bottom += (til::CoordType)abs(sTopProposed);
         }
     }
     else
     {
         // we're being vertically sized from the bottom border
-        const SHORT sBottomProposed = (srNewViewport.Bottom + DeltaY);
+        const auto sBottomProposed = (srNewViewport.Bottom + DeltaY);
         if (sBottomProposed <= (coordScreenBufferSize.Y - 1))
         {
             // If the new bottom is supposed to be before the final line of the buffer
@@ -1184,7 +1181,7 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
             // The final valid end position will be the coordinates of
             // the last character displayed (including any characters
             // in the input line)
-            COORD coordValidEnd;
+            til::point coordValidEnd;
             Selection::Instance().GetValidAreaBoundaries(nullptr, &coordValidEnd);
 
             // If the bottom of the window when adjusted would be
@@ -1222,21 +1219,21 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
     }
 
     // Bottom and right cannot pass the final characters in the array.
-    const SHORT offRightDelta = srNewViewport.Right - (coordScreenBufferSize.X - 1);
+    const auto offRightDelta = srNewViewport.Right - (coordScreenBufferSize.X - 1);
     if (offRightDelta > 0) // the viewport was off the right of the buffer...
     {
         // ...so slide both left/right back into the buffer. This will prevent us
         // from having a negative width later.
         srNewViewport.Right -= offRightDelta;
-        srNewViewport.Left = std::max<SHORT>(0, srNewViewport.Left - offRightDelta);
+        srNewViewport.Left = std::max(0, srNewViewport.Left - offRightDelta);
     }
-    const SHORT offBottomDelta = srNewViewport.Bottom - (coordScreenBufferSize.Y - 1);
+    const auto offBottomDelta = srNewViewport.Bottom - (coordScreenBufferSize.Y - 1);
     if (offBottomDelta > 0) // the viewport was off the right of the buffer...
     {
         // ...so slide both top/bottom back into the buffer. This will prevent us
         // from having a negative width later.
         srNewViewport.Bottom -= offBottomDelta;
-        srNewViewport.Top = std::max<SHORT>(0, srNewViewport.Top - offBottomDelta);
+        srNewViewport.Top = std::max(0, srNewViewport.Top - offBottomDelta);
     }
 
     // See MSFT:19917443
@@ -1249,9 +1246,9 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
     auto newViewport = Viewport::FromInclusive(srNewViewport);
     if (gci.IsTerminalScrolling() && newViewport.Height() >= _viewport.Height())
     {
-        const auto newTop = static_cast<short>(std::max(0, _virtualBottom - (newViewport.Height() - 1)));
+        const auto newTop = std::max(0, _virtualBottom - (newViewport.Height() - 1));
 
-        newViewport = Viewport::FromDimensions(COORD({ newViewport.Left(), newTop }), newViewport.Dimensions());
+        newViewport = Viewport::FromDimensions(til::point{ newViewport.Left(), newTop }, newViewport.Dimensions());
     }
 
     _viewport = newViewport;
@@ -1282,9 +1279,9 @@ void SCREEN_INFORMATION::_InternalSetViewportSize(const COORD* const pcoordSize,
 // - pcoordSize - Requested viewport width/heights in characters
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::_AdjustViewportSize(const RECT* const prcClientNew,
-                                             const RECT* const prcClientOld,
-                                             const COORD* const pcoordSize)
+void SCREEN_INFORMATION::_AdjustViewportSize(const til::rect& prcClientNew,
+                                             const til::rect& prcClientOld,
+                                             const til::size& pcoordSize)
 {
     // If the left is the only one that changed (and not the right
     // also), then adjust from the left. Otherwise if the right
@@ -1297,10 +1294,10 @@ void SCREEN_INFORMATION::_AdjustViewportSize(const RECT* const prcClientNew,
     // being dragged and forced to resize at a monitor boundary, all 4
     // will change. In this case especially, users expect the top left
     // to stay in place and the bottom right to adapt.
-    const auto fResizeFromLeft = prcClientNew->left != prcClientOld->left &&
-                                 prcClientNew->right == prcClientOld->right;
-    const auto fResizeFromTop = prcClientNew->top != prcClientOld->top &&
-                                prcClientNew->bottom == prcClientOld->bottom;
+    const auto fResizeFromLeft = prcClientNew.left != prcClientOld.left &&
+                                 prcClientNew.right == prcClientOld.right;
+    const auto fResizeFromTop = prcClientNew.top != prcClientOld.top &&
+                                prcClientNew.bottom == prcClientOld.bottom;
 
     const auto oldViewport = Viewport(_viewport);
 
@@ -1339,9 +1336,9 @@ void SCREEN_INFORMATION::_AdjustViewportSize(const RECT* const prcClientNew,
 //   (consuming horizontal space) will need to be visible
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::s_CalculateScrollbarVisibility(const RECT* const prcClientArea,
-                                                        const COORD* const pcoordBufferSize,
-                                                        const COORD* const pcoordFontSize,
+void SCREEN_INFORMATION::s_CalculateScrollbarVisibility(const til::rect& prcClientArea,
+                                                        const til::size& pcoordBufferSize,
+                                                        const til::size& pcoordFontSize,
                                                         _Out_ bool* const pfIsHorizontalVisible,
                                                         _Out_ bool* const pfIsVerticalVisible)
 {
@@ -1350,14 +1347,14 @@ void SCREEN_INFORMATION::s_CalculateScrollbarVisibility(const RECT* const prcCli
     *pfIsVerticalVisible = false;
 
     // Set up the client area in pixels
-    SIZE sizeClientPixels = { 0 };
-    sizeClientPixels.cx = RECT_WIDTH(prcClientArea);
-    sizeClientPixels.cy = RECT_HEIGHT(prcClientArea);
+    til::size sizeClientPixels;
+    sizeClientPixels.cx = prcClientArea.width();
+    sizeClientPixels.cy = prcClientArea.height();
 
     // Set up the buffer area in pixels by multiplying the size by the font size scale factor
-    SIZE sizeBufferPixels = { 0 };
-    sizeBufferPixels.cx = pcoordBufferSize->X * pcoordFontSize->X;
-    sizeBufferPixels.cy = pcoordBufferSize->Y * pcoordFontSize->Y;
+    til::size sizeBufferPixels;
+    sizeBufferPixels.cx = pcoordBufferSize.X * pcoordFontSize.X;
+    sizeBufferPixels.cy = pcoordBufferSize.Y * pcoordFontSize.Y;
 
     // Now figure out whether we need one or both scroll bars.
     // Showing a scroll bar in one direction may necessitate showing
@@ -1420,7 +1417,7 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
 // - <in> Coordinates of the new screen size
 // Return Value:
 // - Success if successful. Invalid parameter if screen buffer size is unexpected. No memory if allocation failed.
-[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeWithReflow(const COORD coordNewScreenSize)
+[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeWithReflow(const til::size coordNewScreenSize)
 {
     if ((USHORT)coordNewScreenSize.X >= SHORT_MAX || (USHORT)coordNewScreenSize.Y >= SHORT_MAX)
     {
@@ -1465,8 +1462,8 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
         auto& newCursor = newTextBuffer->GetCursor();
         // Adjust the viewport so the cursor doesn't wildly fly off up or down.
         const auto sCursorHeightInViewportAfter = newCursor.GetPosition().Y - _viewport.Top();
-        COORD coordCursorHeightDiff = { 0 };
-        coordCursorHeightDiff.Y = gsl::narrow_cast<short>(sCursorHeightInViewportAfter - sCursorHeightInViewportBefore);
+        til::point coordCursorHeightDiff;
+        coordCursorHeightDiff.Y = sCursorHeightInViewportAfter - sCursorHeightInViewportBefore;
         LOG_IF_FAILED(SetViewportOrigin(false, coordCursorHeightDiff, true));
 
         newTextBuffer->SetCurrentAttributes(oldPrimaryAttributes);
@@ -1484,7 +1481,7 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
 // - coordNewScreenSize - new size of screen.
 // Return Value:
 // - Success if successful. Invalid parameter if screen buffer size is unexpected. No memory if allocation failed.
-[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeTraditional(const COORD coordNewScreenSize)
+[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeTraditional(const til::size coordNewScreenSize)
 {
     _textBuffer->GetCursor().StartDeferDrawing();
     auto endDefer = wil::scope_exit([&]() noexcept { _textBuffer->GetCursor().EndDeferDrawing(); });
@@ -1499,7 +1496,7 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
 // - DoScrollBarUpdate - indicates whether to update scroll bars at the end
 // Return Value:
 // - Success if successful. Invalid parameter if screen buffer size is unexpected. No memory if allocation failed.
-[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeScreenBuffer(const COORD coordNewScreenSize,
+[[nodiscard]] NTSTATUS SCREEN_INFORMATION::ResizeScreenBuffer(const til::size coordNewScreenSize,
                                                               const bool fDoScrollBarUpdate)
 {
     // If the size hasn't actually changed, do nothing.
@@ -1552,7 +1549,7 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
     {
         if (HasAccessibilityEventing())
         {
-            NotifyAccessibilityEventing(0, 0, (SHORT)(coordNewScreenSize.X - 1), (SHORT)(coordNewScreenSize.Y - 1));
+            NotifyAccessibilityEventing(0, 0, (til::CoordType)(coordNewScreenSize.X - 1), (til::CoordType)(coordNewScreenSize.Y - 1));
         }
 
         if ((!ConvScreenInfo))
@@ -1589,7 +1586,7 @@ bool SCREEN_INFORMATION::IsMaximizedY() const
 // - psrRect - Pointer to rectangle holding data to be trimmed
 // Return Value:
 // - <none>
-void SCREEN_INFORMATION::ClipToScreenBuffer(_Inout_ SMALL_RECT* const psrClip) const
+void SCREEN_INFORMATION::ClipToScreenBuffer(_Inout_ til::inclusive_rect* const psrClip) const
 {
     const auto bufferSize = GetBufferSize();
 
@@ -1695,7 +1692,7 @@ void SCREEN_INFORMATION::SetCursorDBMode(const bool DoubleCursor)
 // - TurnOn - true if cursor should be left on, false if should be left off
 // Return Value:
 // - Status
-[[nodiscard]] NTSTATUS SCREEN_INFORMATION::SetCursorPosition(const COORD Position, const bool TurnOn)
+[[nodiscard]] NTSTATUS SCREEN_INFORMATION::SetCursorPosition(const til::point Position, const bool TurnOn)
 {
     const auto& gci = ServiceLocator::LocateGlobals().getConsoleInformation();
     auto& cursor = _textBuffer->GetCursor();
@@ -1749,9 +1746,9 @@ void SCREEN_INFORMATION::SetCursorDBMode(const bool DoubleCursor)
     return STATUS_SUCCESS;
 }
 
-void SCREEN_INFORMATION::MakeCursorVisible(const COORD CursorPosition, const bool updateBottom)
+void SCREEN_INFORMATION::MakeCursorVisible(const til::point CursorPosition, const bool updateBottom)
 {
-    COORD WindowOrigin;
+    til::point WindowOrigin;
 
     if (CursorPosition.X > _viewport.RightInclusive())
     {
@@ -1926,12 +1923,12 @@ void SCREEN_INFORMATION::_handleDeferredResize(SCREEN_INFORMATION& siMain)
 {
     if (siMain._fAltWindowChanged)
     {
-        siMain.ProcessResizeWindow(&(siMain._rcAltSavedClientNew), &(siMain._rcAltSavedClientOld));
+        siMain.ProcessResizeWindow(til::rect{ siMain._rcAltSavedClientNew }, til::rect{ siMain._rcAltSavedClientOld });
         siMain._fAltWindowChanged = false;
     }
     else if (siMain._deferredPtyResize.has_value())
     {
-        const auto newViewSize = siMain._deferredPtyResize.value().to_win32_coord();
+        const auto newViewSize = siMain._deferredPtyResize.value();
         // Tricky! We want to make sure to resize the actual main buffer
         // here, not just change the size of the viewport. When they resized
         // the alt buffer, the dimensions of the alt buffer changed. We
@@ -1955,8 +1952,7 @@ void SCREEN_INFORMATION::_handleDeferredResize(SCREEN_INFORMATION& siMain)
         // From ApiRoutines::SetConsoleScreenBufferInfoExImpl. We don't need
         // the whole call to SetConsoleScreenBufferInfoEx here, that's
         // too much work.
-        if (newBufferSize.X != oldScreenBufferSize.X ||
-            newBufferSize.Y != oldScreenBufferSize.Y)
+        if (newBufferSize != oldScreenBufferSize)
         {
             auto& commandLine = CommandLine::Instance();
             commandLine.Hide(FALSE);
@@ -1966,7 +1962,7 @@ void SCREEN_INFORMATION::_handleDeferredResize(SCREEN_INFORMATION& siMain)
 
         // Not that the buffer is smaller, actually make sure to resize our
         // viewport to match.
-        siMain.SetViewportSize(&newViewSize);
+        siMain.SetViewportSize(newViewSize);
 
         // Clear out the resize.
         siMain._deferredPtyResize = std::nullopt;
@@ -2036,7 +2032,7 @@ void SCREEN_INFORMATION::_handleDeferredResize(SCREEN_INFORMATION& siMain)
 void SCREEN_INFORMATION::UseMainScreenBuffer()
 {
     auto& gci = ServiceLocator::LocateGlobals().getConsoleInformation();
-    auto psiMain = _psiMainBuffer;
+    SCREEN_INFORMATION* psiMain = _psiMainBuffer;
     if (psiMain != nullptr)
     {
         _handleDeferredResize(*psiMain);
@@ -2296,20 +2292,19 @@ void SCREEN_INFORMATION::SetViewport(const Viewport& newViewport,
 {
     const auto oldCursorPos = _textBuffer->GetCursor().GetPosition();
     auto sNewTop = oldCursorPos.Y;
-    const auto oldViewport = _viewport;
 
-    short delta = (sNewTop + _viewport.Height()) - (GetBufferSize().Height());
+    auto delta = (sNewTop + _viewport.Height()) - (GetBufferSize().Height());
     for (auto i = 0; i < delta; i++)
     {
         _textBuffer->IncrementCircularBuffer();
         sNewTop--;
     }
 
-    const COORD coordNewOrigin = { 0, sNewTop };
+    const til::point coordNewOrigin{ 0, sNewTop };
     RETURN_IF_FAILED(SetViewportOrigin(true, coordNewOrigin, true));
 
     // Place the cursor at the same x coord, on the row that's now the top
-    RETURN_IF_FAILED(SetCursorPosition(COORD{ oldCursorPos.X, sNewTop }, false));
+    RETURN_IF_FAILED(SetCursorPosition({ oldCursorPos.X, sNewTop }, false));
 
     // Update all the rows in the current viewport with the standard erase attributes,
     // i.e. the current background color, but with no meta attributes set.
@@ -2318,8 +2313,8 @@ void SCREEN_INFORMATION::SetViewport(const Viewport& newViewport,
 
     // +1 on the y coord because we don't want to clear the attributes of the
     // cursor row, the one we saved.
-    auto fillPosition = COORD{ 0, _viewport.Top() + 1 };
-    auto fillLength = gsl::narrow_cast<size_t>(_viewport.Height() * GetBufferSize().Width());
+    til::point fillPosition{ 0, _viewport.Top() + 1 };
+    auto fillLength = gsl::narrow<size_t>(_viewport.Height() * GetBufferSize().Width());
     auto fillData = OutputCellIterator{ fillAttributes, fillLength };
     Write(fillData, fillPosition, false);
 
@@ -2369,10 +2364,10 @@ OutputCellRect SCREEN_INFORMATION::ReadRect(const Viewport viewport) const
 
     OutputCellRect result(viewport.Height(), viewport.Width());
     const OutputCell paddingCell{ std::wstring_view{ &UNICODE_SPACE, 1 }, {}, GetAttributes() };
-    for (size_t rowIndex = 0; rowIndex < gsl::narrow<size_t>(viewport.Height()); ++rowIndex)
+    for (til::CoordType rowIndex = 0, height = viewport.Height(); rowIndex < height; ++rowIndex)
     {
         auto location = viewport.Origin();
-        location.Y += (SHORT)rowIndex;
+        location.Y += rowIndex;
 
         auto data = GetCellLineDataAt(location);
         const auto span = result.GetRow(rowIndex);
@@ -2428,7 +2423,7 @@ OutputCellIterator SCREEN_INFORMATION::Write(const OutputCellIterator it)
 // Note:
 // - will throw exception on error.
 OutputCellIterator SCREEN_INFORMATION::Write(const OutputCellIterator it,
-                                             const COORD target,
+                                             const til::point target,
                                              const std::optional<bool> wrap)
 {
     // NOTE: if wrap = true/false, we want to set the line's wrap to true/false (respectively) if we reach the end of the line
@@ -2453,7 +2448,7 @@ OutputCellIterator SCREEN_INFORMATION::WriteRect(const OutputCellIterator it,
     auto iter = it;
     for (auto i = viewport.Top(); i < viewport.BottomExclusive(); i++)
     {
-        iter = _textBuffer->WriteLine(iter, { viewport.Left(), i }, false, viewport.RightInclusive());
+        iter = _textBuffer->WriteLine(iter, { viewport.Left(), i }), false, viewport.RightInclusive();
     }
 
     return iter;
@@ -2469,15 +2464,15 @@ OutputCellIterator SCREEN_INFORMATION::WriteRect(const OutputCellIterator it,
 // Note:
 // - will throw exception on error.
 void SCREEN_INFORMATION::WriteRect(const OutputCellRect& data,
-                                   const COORD location)
+                                   const til::point location)
 {
     for (size_t i = 0; i < data.Height(); i++)
     {
         const auto iter = data.GetRowIter(i);
 
-        COORD point;
+        til::point point;
         point.X = location.X;
-        point.Y = location.Y + static_cast<short>(i);
+        point.Y = location.Y + static_cast<til::CoordType>(i);
 
         _textBuffer->WriteLine(iter, point);
     }
@@ -2498,7 +2493,7 @@ void SCREEN_INFORMATION::ClearTextData()
 // - position - location on the screen to get the word boundary for
 // Return Value:
 // - word boundary positions
-std::pair<COORD, COORD> SCREEN_INFORMATION::GetWordBoundary(const COORD position) const
+std::pair<til::point, til::point> SCREEN_INFORMATION::GetWordBoundary(const til::point position) const
 {
     // The position argument is in screen coordinates, but we need the
     // equivalent buffer position, taking line rendition into account.
@@ -2590,32 +2585,32 @@ const TextBuffer& SCREEN_INFORMATION::GetTextBuffer() const noexcept
     return *_textBuffer;
 }
 
-TextBufferTextIterator SCREEN_INFORMATION::GetTextDataAt(const COORD at) const
+TextBufferTextIterator SCREEN_INFORMATION::GetTextDataAt(const til::point at) const
 {
     return _textBuffer->GetTextDataAt(at);
 }
 
-TextBufferCellIterator SCREEN_INFORMATION::GetCellDataAt(const COORD at) const
+TextBufferCellIterator SCREEN_INFORMATION::GetCellDataAt(const til::point at) const
 {
     return _textBuffer->GetCellDataAt(at);
 }
 
-TextBufferTextIterator SCREEN_INFORMATION::GetTextLineDataAt(const COORD at) const
+TextBufferTextIterator SCREEN_INFORMATION::GetTextLineDataAt(const til::point at) const
 {
     return _textBuffer->GetTextLineDataAt(at);
 }
 
-TextBufferCellIterator SCREEN_INFORMATION::GetCellLineDataAt(const COORD at) const
+TextBufferCellIterator SCREEN_INFORMATION::GetCellLineDataAt(const til::point at) const
 {
     return _textBuffer->GetCellLineDataAt(at);
 }
 
-TextBufferTextIterator SCREEN_INFORMATION::GetTextDataAt(const COORD at, const Viewport limit) const
+TextBufferTextIterator SCREEN_INFORMATION::GetTextDataAt(const til::point at, const Viewport limit) const
 {
     return _textBuffer->GetTextDataAt(at, limit);
 }
 
-TextBufferCellIterator SCREEN_INFORMATION::GetCellDataAt(const COORD at, const Viewport limit) const
+TextBufferCellIterator SCREEN_INFORMATION::GetCellDataAt(const til::point at, const Viewport limit) const
 {
     return _textBuffer->GetCellDataAt(at, limit);
 }
@@ -2669,7 +2664,7 @@ void SCREEN_INFORMATION::InitializeCursorRowAttributes()
 // - the virtual terminal viewport
 Viewport SCREEN_INFORMATION::GetVirtualViewport() const noexcept
 {
-    const short newTop = _virtualBottom - _viewport.Height() + 1;
+    const auto newTop = _virtualBottom - _viewport.Height() + 1;
     return Viewport::FromDimensions({ _viewport.Left(), newTop }, _viewport.Dimensions());
 }
 

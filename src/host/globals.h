@@ -49,8 +49,8 @@ public:
 
     wil::unique_event_nothrow hInputEvent;
 
-    SHORT sVerticalScrollSize;
-    SHORT sHorizontalScrollSize;
+    til::CoordType sVerticalScrollSize;
+    til::CoordType sHorizontalScrollSize;
 
     int dpi = USER_DEFAULT_SCREEN_DPI;
     ULONG cursorPixelWidth = 1;

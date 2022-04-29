@@ -13,7 +13,7 @@ namespace winrt::Microsoft::Terminal::TerminalConnection::implementation
 
         void Start() noexcept;
         void WriteInput(const hstring& data);
-        void Resize(uint32_t rows, uint32_t columns) noexcept;
+        void Resize(int32_t rows, int32_t columns) noexcept;
         void Close() noexcept;
 
         void Initialize(const Windows::Foundation::Collections::ValueSet& /*settings*/) const noexcept {};

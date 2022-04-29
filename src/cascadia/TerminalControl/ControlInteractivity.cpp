@@ -193,7 +193,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     }
 
     void ControlInteractivity::PointerPressed(Control::MouseButtonState buttonState,
-                                              const unsigned int pointerUpdateKind,
+                                              const uint32_t pointerUpdateKind,
                                               const uint64_t timestamp,
                                               const ::Microsoft::Terminal::Core::ControlKeyStates modifiers,
                                               const Core::Point pixelPosition)
@@ -275,7 +275,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     }
 
     void ControlInteractivity::PointerMoved(Control::MouseButtonState buttonState,
-                                            const unsigned int pointerUpdateKind,
+                                            const uint32_t pointerUpdateKind,
                                             const ::Microsoft::Terminal::Core::ControlKeyStates modifiers,
                                             const bool focused,
                                             const Core::Point pixelPosition,
@@ -363,7 +363,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     }
 
     void ControlInteractivity::PointerReleased(Control::MouseButtonState buttonState,
-                                               const unsigned int pointerUpdateKind,
+                                               const uint32_t pointerUpdateKind,
                                                const ::Microsoft::Terminal::Core::ControlKeyStates modifiers,
                                                const Core::Point pixelPosition)
     {
@@ -430,7 +430,7 @@ namespace winrt::Microsoft::Terminal::Control::implementation
             return _sendMouseEventHelper(terminalPosition,
                                          WM_MOUSEWHEEL,
                                          modifiers,
-                                         ::base::saturated_cast<short>(delta),
+                                         delta,
                                          buttonState);
         }
 
@@ -619,9 +619,9 @@ namespace winrt::Microsoft::Terminal::Control::implementation
     }
 
     bool ControlInteractivity::_sendMouseEventHelper(const til::point terminalPosition,
-                                                     const unsigned int pointerUpdateKind,
+                                                     const uint32_t pointerUpdateKind,
                                                      const ::Microsoft::Terminal::Core::ControlKeyStates modifiers,
-                                                     const SHORT wheelDelta,
+                                                     const int32_t wheelDelta,
                                                      Control::MouseButtonState buttonState)
     {
         const auto adjustment = _core->ScrollOffset() > 0 ? _core->BufferHeight() - _core->ScrollOffset() - _core->ViewHeight() : 0;

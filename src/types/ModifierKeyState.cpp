@@ -22,7 +22,7 @@ constexpr bool RuntimeIsFlagSet(const DWORD flags, const DWORD flag) noexcept
     return !!(flags & flag);
 }
 
-std::unordered_set<ModifierKeyState> FromVkKeyScan(const short vkKeyScanFlags)
+std::unordered_set<ModifierKeyState> FromVkKeyScan(const til::CoordType vkKeyScanFlags)
 {
     std::unordered_set<ModifierKeyState> keyState;
 

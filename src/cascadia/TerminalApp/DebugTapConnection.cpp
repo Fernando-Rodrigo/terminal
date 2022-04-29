@@ -44,7 +44,7 @@ namespace winrt::Microsoft::TerminalApp::implementation
             _pairedTap->_PrintInput(data);
             _wrappedConnection.WriteInput(data);
         }
-        void Resize(uint32_t rows, uint32_t columns) { _wrappedConnection.Resize(rows, columns); }
+        void Resize(int32_t rows, int32_t columns) { _wrappedConnection.Resize(rows, columns); }
         void Close() { _wrappedConnection.Close(); }
         winrt::event_token TerminalOutput(const TerminalOutputHandler& args) { return _wrappedConnection.TerminalOutput(args); };
         void TerminalOutput(const winrt::event_token& token) noexcept { _wrappedConnection.TerminalOutput(token); };
@@ -88,7 +88,7 @@ namespace winrt::Microsoft::TerminalApp::implementation
         }
     }
 
-    void DebugTapConnection::Resize(uint32_t /*rows*/, uint32_t /*columns*/)
+    void DebugTapConnection::Resize(int32_t /*rows*/, int32_t /*columns*/)
     {
         // no resize events are propagated
     }

@@ -22,19 +22,18 @@ using namespace Microsoft::Console::Interactivity::Win32;
 // Arguments:
 // - <none>
 // Return Value:
-// - RECT of client area positions in pixels.
-RECT WindowMetrics::GetMinClientRectInPixels()
+// - til::rect of client area positions in pixels.
+til::rect WindowMetrics::GetMinClientRectInPixels()
 {
     // prepare rectangle
-    RECT rc;
-    SetRectEmpty(&rc);
+    til::rect rc;
 
     // set bottom/right dimensions to represent minimum window width/height
     rc.right = GetSystemMetrics(SM_CXMIN);
     rc.bottom = GetSystemMetrics(SM_CYMIN);
 
     // convert to client rect
-    ConvertWindowRectToClientRect(&rc);
+    ConvertWindowRectToClientRect(rc);
 
     // there is no scroll bar subtraction here as the minimum window dimensions can be expanded wider to hold a scroll bar if necessary
 
@@ -48,14 +47,14 @@ RECT WindowMetrics::GetMinClientRectInPixels()
 // Arguments:
 // - <none>
 // Return Value:
-// - RECT of client area positions in pixels.
-RECT WindowMetrics::GetMaxClientRectInPixels()
+// - til::rect of client area positions in pixels.
+til::rect WindowMetrics::GetMaxClientRectInPixels()
 {
     // This will retrieve the outer window rect. We need the client area to calculate characters.
     auto rc = GetMaxWindowRectInPixels();
 
     // convert to client rect
-    ConvertWindowRectToClientRect(&rc);
+    ConvertWindowRectToClientRect(rc);
 
     return rc;
 }
@@ -65,12 +64,11 @@ RECT WindowMetrics::GetMaxClientRectInPixels()
 // Arguments:
 // - <none>
 // Return Value:
-// - RECT containing the left, right, top, and bottom positions from the desktop origin in pixels. Measures the outer edges of the potential window.
-RECT WindowMetrics::GetMaxWindowRectInPixels()
+// - til::rect containing the left, right, top, and bottom positions from the desktop origin in pixels. Measures the outer edges of the potential window.
+til::rect WindowMetrics::GetMaxWindowRectInPixels()
 {
-    RECT rc;
-    SetRectEmpty(&rc);
-    return GetMaxWindowRectInPixels(&rc, nullptr);
+    til::rect rc;
+    return GetMaxWindowRectInPixels(rc, nullptr);
 }
 
 // Routine Description:
@@ -81,15 +79,11 @@ RECT WindowMetrics::GetMaxWindowRectInPixels()
 // - pDpiSuggested - The dpi that matches the suggested rect. We will attempt to compute this during the function, but if we fail for some reason,
 //                 - the original value passed in will be left untouched.
 // Return Value:
-// - RECT containing the left, right, top, and bottom positions from the desktop origin in pixels. Measures the outer edges of the potential window.
-RECT WindowMetrics::GetMaxWindowRectInPixels(const RECT* const prcSuggested, _Out_opt_ UINT* pDpiSuggested)
+// - til::rect containing the left, right, top, and bottom positions from the desktop origin in pixels. Measures the outer edges of the potential window.
+til::rect WindowMetrics::GetMaxWindowRectInPixels(const til::rect& prcSuggested, _Out_opt_ UINT* pDpiSuggested)
 {
     // prepare rectangle
-    auto rc = *prcSuggested;
-
-    // use zero rect to compare.
-    RECT rcZero;
-    SetRectEmpty(&rcZero);
+    auto rc = prcSuggested;
 
     // First get the monitor pointer from either the active window or the default location (0,0,0,0)
     HMONITOR hMonitor = nullptr;
@@ -97,10 +91,11 @@ RECT WindowMetrics::GetMaxWindowRectInPixels(const RECT* const prcSuggested, _Ou
     // NOTE: We must use the nearest monitor because sometimes the system moves the window around into strange spots while performing snap and Win+D operations.
     // Those operations won't work correctly if we use MONITOR_DEFAULTTOPRIMARY.
     auto pWindow = ServiceLocator::LocateConsoleWindow();
-    if (pWindow == nullptr || (TRUE != EqualRect(&rc, &rcZero)))
+    if (pWindow == nullptr || rc != til::rect{})
     {
         // For invalid window handles or when we were passed a non-zero suggestion rectangle, get the monitor from the rect.
-        hMonitor = MonitorFromRect(&rc, MONITOR_DEFAULTTONEAREST);
+        const auto r = rc.to_win32_rect();
+        hMonitor = MonitorFromRect(&r, MONITOR_DEFAULTTONEAREST);
     }
     else
     {
@@ -131,12 +126,12 @@ RECT WindowMetrics::GetMaxWindowRectInPixels(const RECT* const prcSuggested, _Ou
     if (pWindow != nullptr && pWindow->IsInFullscreen())
     {
         // In full screen mode, we will consume the whole monitor with no chrome.
-        rc = MonitorInfo.rcMonitor;
+        rc = til::rect{ MonitorInfo.rcMonitor };
     }
     else
     {
         // In non-full screen, we want to only use the work area (avoiding the task bar space)
-        rc = MonitorInfo.rcWork;
+        rc = til::rect{ MonitorInfo.rcWork };
         rc.top -= wi.cyWindowBorders;
         rc.bottom += wi.cyWindowBorders;
         rc.left -= wi.cxWindowBorders;
@@ -170,9 +165,9 @@ RECT WindowMetrics::GetMaxWindowRectInPixels(const RECT* const prcSuggested, _Ou
 // - dwExStyle - Extended Style flags
 // Return Value:
 // - BOOL if adjustment was successful. (See AdjustWindowRectEx definition for details).
-BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle)
+BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ til::rect& prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle)
 {
-    return ServiceLocator::LocateHighDpiApi<WindowDpiApi>()->AdjustWindowRectExForDpi(prc, dwStyle, fMenu, dwExStyle, ServiceLocator::LocateGlobals().dpi);
+    return AdjustWindowRectEx(prc, dwStyle, fMenu, dwExStyle, ServiceLocator::LocateGlobals().dpi);
 }
 
 // Routine Description:
@@ -185,9 +180,9 @@ BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle, 
 // - iDpi - The DPI to use for scaling.
 // Return Value:
 // - BOOL if adjustment was successful. (See AdjustWindowRectEx definition for details).
-BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle, const int iDpi)
+BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ til::rect& prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle, const int iDpi)
 {
-    return ServiceLocator::LocateHighDpiApi<WindowDpiApi>()->AdjustWindowRectExForDpi(prc, dwStyle, fMenu, dwExStyle, iDpi);
+    return ServiceLocator::LocateHighDpiApi<WindowDpiApi>()->AdjustWindowRectExForDpi(prc.as_win32_rect(), dwStyle, fMenu, dwExStyle, iDpi);
 }
 
 // Routine Description:
@@ -199,7 +194,7 @@ BOOL WindowMetrics::AdjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle, 
 // - prc - Pointer to rectangle to be adjusted from client to window positions.
 // Return Value:
 // - <none>
-void WindowMetrics::ConvertClientRectToWindowRect(_Inout_ RECT* const prc)
+void WindowMetrics::ConvertClientRectToWindowRect(_Inout_ til::rect& prc)
 {
     ConvertRect(prc, ConvertRectangle::CLIENT_TO_WINDOW);
 }
@@ -213,7 +208,7 @@ void WindowMetrics::ConvertClientRectToWindowRect(_Inout_ RECT* const prc)
 // - prc - Pointer to rectangle to be adjusted from window to client positions.
 // Return Value:
 // - <none>
-void WindowMetrics::ConvertWindowRectToClientRect(_Inout_ RECT* const prc)
+void WindowMetrics::ConvertWindowRectToClientRect(_Inout_ til::rect& prc)
 {
     ConvertRect(prc, ConvertRectangle::WINDOW_TO_CLIENT);
 }
@@ -229,17 +224,16 @@ void WindowMetrics::ConvertWindowRectToClientRect(_Inout_ RECT* const prc)
 // - dwExStyle - Extended Style flags
 // Return Value:
 // - BOOL if adjustment was successful. (See AdjustWindowRectEx definition for details).
-BOOL WindowMetrics::UnadjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle)
+BOOL WindowMetrics::UnadjustWindowRectEx(_Inout_ til::rect& prc, const DWORD dwStyle, const BOOL fMenu, const DWORD dwExStyle)
 {
-    RECT rc;
-    SetRectEmpty(&rc);
-    auto fRc = AdjustWindowRectEx(&rc, dwStyle, fMenu, dwExStyle);
+    til::rect rc;
+    auto fRc = AdjustWindowRectEx(rc, dwStyle, fMenu, dwExStyle);
     if (fRc)
     {
-        prc->left -= rc.left;
-        prc->top -= rc.top;
-        prc->right -= rc.right;
-        prc->bottom -= rc.bottom;
+        prc.left -= rc.left;
+        prc.top -= rc.top;
+        prc.right -= rc.right;
+        prc.bottom -= rc.bottom;
     }
     return fRc;
 }
@@ -252,7 +246,7 @@ BOOL WindowMetrics::UnadjustWindowRectEx(_Inout_ LPRECT prc, const DWORD dwStyle
 // - crDirection - specifies which conversion to perform
 // Return Value:
 // - <none>
-void WindowMetrics::ConvertRect(_Inout_ RECT* const prc, const ConvertRectangle crDirection)
+void WindowMetrics::ConvertRect(_Inout_ til::rect& prc, const ConvertRectangle crDirection)
 {
     // collect up current window style (if available) for adjustment
     DWORD dwStyle = 0;
