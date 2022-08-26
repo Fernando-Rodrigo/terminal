@@ -22,7 +22,7 @@
 
     // Miscellaneous
     "confirmCloseAllTabs": true,
-    "startOnUserLogin":  false,
+    "startOnUserLogin": false,
     "theme": "system",
     "snapToGridOnResize": true,
 
@@ -112,7 +112,6 @@
         { "command": "openSettings", "keys": "ctrl+," },
         { "command": { "action": "openSettings", "target": "defaultsFile" }, "keys": "ctrl+alt+," },
         { "command": "find", "keys": "ctrl+shift+f" },
-        { "command": "toggleRetroEffect" },
         { "command": "openTabColorPicker" },
         { "command": "commandPalette", "keys":"ctrl+shift+p" },
 
@@ -171,8 +170,8 @@
         { "command": "scrollUpPage", "keys": "ctrl+shift+pgup" },
 
         // Visual Adjustments
-        { "command": { "action": "adjustFontSize", "delta": 1 }, "keys": "ctrl+=" },
-        { "command": { "action": "adjustFontSize", "delta": -1 }, "keys": "ctrl+-" },
+        { "command": { "action": "adjustFontSize", "delta": 1 }, "keys": "ctrl+plus" },
+        { "command": { "action": "adjustFontSize", "delta": -1 }, "keys": "ctrl+minus" },
         { "command": "resetFontSize", "keys": "ctrl+0" },
 
         // Other commands

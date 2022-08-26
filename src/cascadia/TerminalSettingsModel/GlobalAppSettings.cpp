@@ -4,9 +4,8 @@
 #include "pch.h"
 #include "GlobalAppSettings.h"
 #include "../../types/inc/Utils.hpp"
-#include "../../inc/DefaultSettings.h"
 #include "JsonUtils.h"
-#include "TerminalSettingsSerializationHelpers.h"
+#include "KeyChordSerialization.h"
 
 #include "GlobalAppSettings.g.cpp"
 
@@ -18,94 +17,75 @@ using namespace winrt::Microsoft::UI::Xaml::Controls;
 
 static constexpr std::string_view LegacyKeybindingsKey{ "keybindings" };
 static constexpr std::string_view ActionsKey{ "actions" };
-static constexpr std::string_view DefaultProfileKey{ "defaultProfile" };
-static constexpr std::string_view AlwaysShowTabsKey{ "alwaysShowTabs" };
-static constexpr std::string_view InitialRowsKey{ "initialRows" };
-static constexpr std::string_view InitialColsKey{ "initialCols" };
-static constexpr std::string_view InitialPositionKey{ "initialPosition" };
-static constexpr std::string_view ShowTitleInTitlebarKey{ "showTerminalTitleInTitlebar" };
 static constexpr std::string_view ThemeKey{ "theme" };
-static constexpr std::string_view TabWidthModeKey{ "tabWidthMode" };
-static constexpr std::string_view ShowTabsInTitlebarKey{ "showTabsInTitlebar" };
-static constexpr std::string_view WordDelimitersKey{ "wordDelimiters" };
-static constexpr std::string_view CopyOnSelectKey{ "copyOnSelect" };
-static constexpr std::string_view CopyFormattingKey{ "copyFormatting" };
-static constexpr std::string_view WarnAboutLargePasteKey{ "largePasteWarning" };
-static constexpr std::string_view WarnAboutMultiLinePasteKey{ "multiLinePasteWarning" };
-static constexpr std::string_view LaunchModeKey{ "launchMode" };
-static constexpr std::string_view ConfirmCloseAllKey{ "confirmCloseAllTabs" };
-static constexpr std::string_view SnapToGridOnResizeKey{ "snapToGridOnResize" };
-static constexpr std::string_view EnableStartupTaskKey{ "startOnUserLogin" };
-static constexpr std::string_view AlwaysOnTopKey{ "alwaysOnTop" };
-static constexpr std::string_view UseTabSwitcherKey{ "useTabSwitcher" };
-static constexpr std::string_view DisableAnimationsKey{ "disableAnimations" };
+static constexpr std::string_view DefaultProfileKey{ "defaultProfile" };
+static constexpr std::string_view LegacyUseTabSwitcherModeKey{ "useTabSwitcher" };
 
-static constexpr std::string_view DebugFeaturesKey{ "debugFeatures" };
-
-static constexpr std::string_view ForceFullRepaintRenderingKey{ "experimental.rendering.forceFullRepaint" };
-static constexpr std::string_view SoftwareRenderingKey{ "experimental.rendering.software" };
-static constexpr std::string_view ForceVTInputKey{ "experimental.input.forceVT" };
-
-#ifdef _DEBUG
-static constexpr bool debugFeaturesDefault{ true };
-#else
-static constexpr bool debugFeaturesDefault{ false };
-#endif
-
-GlobalAppSettings::GlobalAppSettings() :
-    _keymap{ winrt::make_self<KeyMapping>() },
-    _keybindingsWarnings{},
-    _unparsedDefaultProfile{},
-    _defaultProfile{},
-    _DebugFeaturesEnabled{ debugFeaturesDefault }
+// Method Description:
+// - Copies any extraneous data from the parent before completing a CreateChild call
+// Arguments:
+// - <none>
+// Return Value:
+// - <none>
+void GlobalAppSettings::_FinalizeInheritance()
 {
-    _commands = winrt::single_threaded_map<winrt::hstring, Model::Command>();
-    _colorSchemes = winrt::single_threaded_map<winrt::hstring, Model::ColorScheme>();
+    for (const auto& parent : _parents)
+    {
+        _actionMap->AddLeastImportantParent(parent->_actionMap);
+        _keybindingsWarnings.insert(_keybindingsWarnings.end(), parent->_keybindingsWarnings.begin(), parent->_keybindingsWarnings.end());
+        for (const auto& [k, v] : parent->_colorSchemes)
+        {
+            if (!_colorSchemes.HasKey(k))
+            {
+                _colorSchemes.Insert(k, v);
+            }
+        }
+
+        for (const auto& [k, v] : parent->_themes)
+        {
+            if (!_themes.HasKey(k))
+            {
+                _themes.Insert(k, v);
+            }
+        }
+    }
 }
 
 winrt::com_ptr<GlobalAppSettings> GlobalAppSettings::Copy() const
 {
     auto globals{ winrt::make_self<GlobalAppSettings>() };
-    globals->_InitialRows = _InitialRows;
-    globals->_InitialCols = _InitialCols;
-    globals->_AlwaysShowTabs = _AlwaysShowTabs;
-    globals->_ShowTitleInTitlebar = _ShowTitleInTitlebar;
-    globals->_ConfirmCloseAllTabs = _ConfirmCloseAllTabs;
-    globals->_Theme = _Theme;
-    globals->_TabWidthMode = _TabWidthMode;
-    globals->_ShowTabsInTitlebar = _ShowTabsInTitlebar;
-    globals->_WordDelimiters = _WordDelimiters;
-    globals->_CopyOnSelect = _CopyOnSelect;
-    globals->_CopyFormatting = _CopyFormatting;
-    globals->_WarnAboutLargePaste = _WarnAboutLargePaste;
-    globals->_WarnAboutMultiLinePaste = _WarnAboutMultiLinePaste;
-    globals->_InitialPosition = _InitialPosition;
-    globals->_LaunchMode = _LaunchMode;
-    globals->_SnapToGridOnResize = _SnapToGridOnResize;
-    globals->_ForceFullRepaintRendering = _ForceFullRepaintRendering;
-    globals->_SoftwareRendering = _SoftwareRendering;
-    globals->_ForceVTInput = _ForceVTInput;
-    globals->_DebugFeaturesEnabled = _DebugFeaturesEnabled;
-    globals->_StartOnUserLogin = _StartOnUserLogin;
-    globals->_AlwaysOnTop = _AlwaysOnTop;
-    globals->_UseTabSwitcher = _UseTabSwitcher;
-    globals->_DisableAnimations = _DisableAnimations;
 
-    globals->_unparsedDefaultProfile = _unparsedDefaultProfile;
+    globals->_UnparsedDefaultProfile = _UnparsedDefaultProfile;
+
     globals->_defaultProfile = _defaultProfile;
-    globals->_keymap = _keymap->Copy();
-    std::copy(_keybindingsWarnings.begin(), _keybindingsWarnings.end(), std::back_inserter(globals->_keybindingsWarnings));
+    globals->_actionMap = _actionMap->Copy();
+    globals->_keybindingsWarnings = _keybindingsWarnings;
 
-    for (auto kv : _colorSchemes)
+#define GLOBAL_SETTINGS_COPY(type, name, jsonKey, ...) \
+    globals->_##name = _##name;
+    MTSM_GLOBAL_SETTINGS(GLOBAL_SETTINGS_COPY)
+#undef GLOBAL_SETTINGS_COPY
+
+    if (_colorSchemes)
     {
-        const auto schemeImpl{ winrt::get_self<ColorScheme>(kv.Value()) };
-        globals->_colorSchemes.Insert(kv.Key(), *schemeImpl->Copy());
+        for (auto kv : _colorSchemes)
+        {
+            const auto schemeImpl{ winrt::get_self<ColorScheme>(kv.Value()) };
+            globals->_colorSchemes.Insert(kv.Key(), *schemeImpl->Copy());
+        }
+    }
+    if (_themes)
+    {
+        for (auto kv : _themes)
+        {
+            const auto themeImpl{ winrt::get_self<implementation::Theme>(kv.Value()) };
+            globals->_themes.Insert(kv.Key(), *themeImpl->Copy());
+        }
     }
 
-    for (auto kv : _commands)
+    for (const auto& parent : _parents)
     {
-        const auto commandImpl{ winrt::get_self<Command>(kv.Value()) };
-        globals->_commands.Insert(kv.Key(), *commandImpl->Copy());
+        globals->AddLeastImportantParent(parent->Copy());
     }
     return globals;
 }
@@ -115,27 +95,24 @@ winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::Microso
     return _colorSchemes.GetView();
 }
 
+#pragma region DefaultProfile
+
 void GlobalAppSettings::DefaultProfile(const winrt::guid& defaultProfile) noexcept
 {
-    _unparsedDefaultProfile.clear();
     _defaultProfile = defaultProfile;
+    _UnparsedDefaultProfile = Utils::GuidToString(defaultProfile);
 }
 
 winrt::guid GlobalAppSettings::DefaultProfile() const
 {
-    // If we have an unresolved default profile, we should likely explode.
-    THROW_HR_IF(E_INVALIDARG, !_unparsedDefaultProfile.empty());
     return _defaultProfile;
 }
 
-winrt::hstring GlobalAppSettings::UnparsedDefaultProfile() const
-{
-    return _unparsedDefaultProfile;
-}
+#pragma endregion
 
-winrt::Microsoft::Terminal::Settings::Model::KeyMapping GlobalAppSettings::KeyMap() const noexcept
+winrt::Microsoft::Terminal::Settings::Model::ActionMap GlobalAppSettings::ActionMap() const noexcept
 {
-    return *_keymap;
+    return *_actionMap;
 }
 
 // Method Description:
@@ -153,63 +130,24 @@ winrt::com_ptr<GlobalAppSettings> GlobalAppSettings::FromJson(const Json::Value&
 
 void GlobalAppSettings::LayerJson(const Json::Value& json)
 {
-    JsonUtils::GetValueForKey(json, DefaultProfileKey, _unparsedDefaultProfile);
+    JsonUtils::GetValueForKey(json, DefaultProfileKey, _UnparsedDefaultProfile);
+    // GH#8076 - when adding enum values to this key, we also changed it from
+    // "useTabSwitcher" to "tabSwitcherMode". Continue supporting
+    // "useTabSwitcher", but prefer "tabSwitcherMode"
+    JsonUtils::GetValueForKey(json, LegacyUseTabSwitcherModeKey, _TabSwitcherMode);
 
-    JsonUtils::GetValueForKey(json, AlwaysShowTabsKey, _AlwaysShowTabs);
+#define GLOBAL_SETTINGS_LAYER_JSON(type, name, jsonKey, ...) \
+    JsonUtils::GetValueForKey(json, jsonKey, _##name);
+    MTSM_GLOBAL_SETTINGS(GLOBAL_SETTINGS_LAYER_JSON)
+#undef GLOBAL_SETTINGS_LAYER_JSON
 
-    JsonUtils::GetValueForKey(json, ConfirmCloseAllKey, _ConfirmCloseAllTabs);
-
-    JsonUtils::GetValueForKey(json, InitialRowsKey, _InitialRows);
-
-    JsonUtils::GetValueForKey(json, InitialColsKey, _InitialCols);
-
-    JsonUtils::GetValueForKey(json, InitialPositionKey, _InitialPosition);
-
-    JsonUtils::GetValueForKey(json, ShowTitleInTitlebarKey, _ShowTitleInTitlebar);
-
-    JsonUtils::GetValueForKey(json, ShowTabsInTitlebarKey, _ShowTabsInTitlebar);
-
-    JsonUtils::GetValueForKey(json, WordDelimitersKey, _WordDelimiters);
-
-    JsonUtils::GetValueForKey(json, CopyOnSelectKey, _CopyOnSelect);
-
-    JsonUtils::GetValueForKey(json, CopyFormattingKey, _CopyFormatting);
-
-    JsonUtils::GetValueForKey(json, WarnAboutLargePasteKey, _WarnAboutLargePaste);
-
-    JsonUtils::GetValueForKey(json, WarnAboutMultiLinePasteKey, _WarnAboutMultiLinePaste);
-
-    JsonUtils::GetValueForKey(json, LaunchModeKey, _LaunchMode);
-
-    JsonUtils::GetValueForKey(json, ThemeKey, _Theme);
-
-    JsonUtils::GetValueForKey(json, TabWidthModeKey, _TabWidthMode);
-
-    JsonUtils::GetValueForKey(json, SnapToGridOnResizeKey, _SnapToGridOnResize);
-
-    // GetValueForKey will only override the current value if the key exists
-    JsonUtils::GetValueForKey(json, DebugFeaturesKey, _DebugFeaturesEnabled);
-
-    JsonUtils::GetValueForKey(json, ForceFullRepaintRenderingKey, _ForceFullRepaintRendering);
-
-    JsonUtils::GetValueForKey(json, SoftwareRenderingKey, _SoftwareRendering);
-    JsonUtils::GetValueForKey(json, ForceVTInputKey, _ForceVTInput);
-
-    JsonUtils::GetValueForKey(json, EnableStartupTaskKey, _StartOnUserLogin);
-
-    JsonUtils::GetValueForKey(json, AlwaysOnTopKey, _AlwaysOnTop);
-
-    JsonUtils::GetValueForKey(json, UseTabSwitcherKey, _UseTabSwitcher);
-
-    JsonUtils::GetValueForKey(json, DisableAnimationsKey, _DisableAnimations);
-
-    // This is a helper lambda to get the keybindings and commands out of both
-    // and array of objects. We'll use this twice, once on the legacy
-    // `keybindings` key, and again on the newer `bindings` key.
-    auto parseBindings = [this, &json](auto jsonKey) {
+    static constexpr std::array bindingsKeys{ LegacyKeybindingsKey, ActionsKey };
+    for (const auto& jsonKey : bindingsKeys)
+    {
         if (auto bindings{ json[JsonKey(jsonKey)] })
         {
-            auto warnings = _keymap->LayerJson(bindings);
+            auto warnings = _actionMap->LayerJson(bindings);
+
             // It's possible that the user provided keybindings have some warnings
             // in them - problems that we should alert the user to, but we can
             // recover from. Most of these warnings cannot be detected later in the
@@ -217,13 +155,8 @@ void GlobalAppSettings::LayerJson(const Json::Value& json)
             // warnings generated from parsing these keybindings, add them to our
             // list of warnings.
             _keybindingsWarnings.insert(_keybindingsWarnings.end(), warnings.begin(), warnings.end());
-
-            // Now parse the array again, but this time as a list of commands.
-            warnings = implementation::Command::LayerJson(_commands, bindings);
         }
-    };
-    parseBindings(LegacyKeybindingsKey);
-    parseBindings(ActionsKey);
+    }
 }
 
 // Method Description:
@@ -237,6 +170,11 @@ void GlobalAppSettings::AddColorScheme(const Model::ColorScheme& scheme)
     _colorSchemes.Insert(scheme.Name(), scheme);
 }
 
+void GlobalAppSettings::RemoveColorScheme(hstring schemeName)
+{
+    _colorSchemes.TryRemove(schemeName);
+}
+
 // Method Description:
 // - Return the warnings that we've collected during parsing the JSON for the
 //   keybindings. It's possible that the user provided keybindings have some
@@ -246,12 +184,43 @@ void GlobalAppSettings::AddColorScheme(const Model::ColorScheme& scheme)
 // - <none>
 // Return Value:
 // - <none>
-std::vector<winrt::Microsoft::Terminal::Settings::Model::SettingsLoadWarnings> GlobalAppSettings::KeybindingsWarnings() const
+const std::vector<winrt::Microsoft::Terminal::Settings::Model::SettingsLoadWarnings>& GlobalAppSettings::KeybindingsWarnings() const
 {
     return _keybindingsWarnings;
 }
 
-winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::Microsoft::Terminal::Settings::Model::Command> GlobalAppSettings::Commands() noexcept
+// Method Description:
+// - Create a new serialized JsonObject from an instance of this class
+// Arguments:
+// - <none>
+// Return Value:
+// - the JsonObject representing this instance
+Json::Value GlobalAppSettings::ToJson() const
 {
-    return _commands.GetView();
+    Json::Value json{ Json::ValueType::objectValue };
+
+    JsonUtils::SetValueForKey(json, DefaultProfileKey, _UnparsedDefaultProfile);
+
+#define GLOBAL_SETTINGS_TO_JSON(type, name, jsonKey, ...) \
+    JsonUtils::SetValueForKey(json, jsonKey, _##name);
+    MTSM_GLOBAL_SETTINGS(GLOBAL_SETTINGS_TO_JSON)
+#undef GLOBAL_SETTINGS_TO_JSON
+
+    json[JsonKey(ActionsKey)] = _actionMap->ToJson();
+    return json;
+}
+
+winrt::Microsoft::Terminal::Settings::Model::Theme GlobalAppSettings::CurrentTheme() noexcept
+{
+    return _themes.TryLookup(Theme());
+}
+
+void GlobalAppSettings::AddTheme(const Model::Theme& theme)
+{
+    _themes.Insert(theme.Name(), theme);
+}
+
+winrt::Windows::Foundation::Collections::IMapView<winrt::hstring, winrt::Microsoft::Terminal::Settings::Model::Theme> GlobalAppSettings::Themes() noexcept
+{
+    return _themes.GetView();
 }

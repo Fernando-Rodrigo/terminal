@@ -23,12 +23,12 @@ Revision History:
 #include "ConsoleShimPolicy.h"
 
 #include <memory>
-#include <wil\resource.h>
+#include <wil/resource.h>
 
 class ConsoleProcessHandle
 {
 public:
-    std::unique_ptr<ConsoleWaitQueue> const pWaitBlockQueue;
+    const std::unique_ptr<ConsoleWaitQueue> pWaitBlockQueue;
     std::unique_ptr<ConsoleHandleData> pInputHandle;
     std::unique_ptr<ConsoleHandleData> pOutputHandle;
 
@@ -40,7 +40,11 @@ public:
     const ConsoleProcessPolicy GetPolicy() const;
     const ConsoleShimPolicy GetShimPolicy() const;
 
-    CD_CONNECTION_INFORMATION GetConnectionInformation() const;
+    const HANDLE GetRawHandle() const;
+
+    CD_CONNECTION_INFORMATION GetConnectionInformation(IDeviceComm* deviceComm) const;
+
+    const ULONG64 GetProcessCreationTime() const;
 
 private:
     ConsoleProcessHandle(const DWORD dwProcessId,
@@ -55,6 +59,8 @@ private:
     ULONG _ulTerminateCount;
     ULONG const _ulProcessGroupId;
     wil::unique_handle const _hProcess;
+
+    mutable ULONG64 _processCreationTime;
 
     const ConsoleProcessPolicy _policy;
     const ConsoleShimPolicy _shimPolicy;

@@ -15,57 +15,14 @@
 // Return Value:
 // - instantiated object
 // Note: will through if unable to allocate char/attribute buffers
-CharRow::CharRow(size_t rowWidth, ROW* const pParent) :
-    _wrapForced{ false },
-    _doubleBytePadded{ false },
+#pragma warning(push)
+#pragma warning(disable : 26447) // small_vector's constructor says it can throw but it should not given how we use it.  This suppresses this error for the AuditMode build.
+CharRow::CharRow(til::CoordType rowWidth, ROW* const pParent) noexcept :
     _data(rowWidth, value_type()),
     _pParent{ FAIL_FAST_IF_NULL(pParent) }
 {
 }
-
-// Routine Description:
-// - Sets the wrap status for the current row
-// Arguments:
-// - wrapForced - True if the row ran out of space and we forced to wrap to the next row. False otherwise.
-// Return Value:
-// - <none>
-void CharRow::SetWrapForced(const bool wrapForced) noexcept
-{
-    _wrapForced = wrapForced;
-}
-
-// Routine Description:
-// - Gets the wrap status for the current row
-// Arguments:
-// - <none>
-// Return Value:
-// - True if the row ran out of space and we were forced to wrap to the next row. False otherwise.
-bool CharRow::WasWrapForced() const noexcept
-{
-    return _wrapForced;
-}
-
-// Routine Description:
-// - Sets the double byte padding for the current row
-// Arguments:
-// - fWrapWasForced - True if the row ran out of space for a double byte character and we padded out the row. False otherwise.
-// Return Value:
-// - <none>
-void CharRow::SetDoubleBytePadded(const bool doubleBytePadded) noexcept
-{
-    _doubleBytePadded = doubleBytePadded;
-}
-
-// Routine Description:
-// - Gets the double byte padding status for the current row.
-// Arguments:
-// - <none>
-// Return Value:
-// - True if the row didn't have space for a double byte character and we were padded out the row. False otherwise.
-bool CharRow::WasDoubleBytePadded() const noexcept
-{
-    return _doubleBytePadded;
-}
+#pragma warning(pop)
 
 // Routine Description:
 // - gets the size of the row, in glyph cells
@@ -73,9 +30,9 @@ bool CharRow::WasDoubleBytePadded() const noexcept
 // - <none>
 // Return Value:
 // - the size of the row
-size_t CharRow::size() const noexcept
+til::CoordType CharRow::size() const noexcept
 {
-    return _data.size();
+    return gsl::narrow_cast<til::CoordType>(_data.size());
 }
 
 // Routine Description:
@@ -90,9 +47,6 @@ void CharRow::Reset() noexcept
     {
         cell.Reset();
     }
-
-    _wrapForced = false;
-    _doubleBytePadded = false;
 }
 
 // Routine Description:
@@ -101,7 +55,7 @@ void CharRow::Reset() noexcept
 // - newSize - the new width of the character and attributes rows
 // Return Value:
 // - S_OK on success, otherwise relevant error code
-[[nodiscard]] HRESULT CharRow::Resize(const size_t newSize) noexcept
+[[nodiscard]] HRESULT CharRow::Resize(const til::CoordType newSize) noexcept
 {
     try
     {
@@ -139,14 +93,14 @@ typename CharRow::const_iterator CharRow::cend() const noexcept
 // - <none>
 // Return Value:
 // - The calculated left boundary of the internal string.
-size_t CharRow::MeasureLeft() const
+til::CoordType CharRow::MeasureLeft() const noexcept
 {
-    std::vector<value_type>::const_iterator it = _data.cbegin();
+    auto it = _data.cbegin();
     while (it != _data.cend() && it->IsSpace())
     {
         ++it;
     }
-    return it - _data.cbegin();
+    return gsl::narrow_cast<til::CoordType>(it - _data.cbegin());
 }
 
 // Routine Description:
@@ -155,17 +109,17 @@ size_t CharRow::MeasureLeft() const
 // - <none>
 // Return Value:
 // - The calculated right boundary of the internal string.
-size_t CharRow::MeasureRight() const noexcept
+til::CoordType CharRow::MeasureRight() const
 {
-    std::vector<value_type>::const_reverse_iterator it = _data.crbegin();
+    auto it = _data.crbegin();
     while (it != _data.crend() && it->IsSpace())
     {
         ++it;
     }
-    return _data.crend() - it;
+    return gsl::narrow_cast<til::CoordType>(_data.crend() - it);
 }
 
-void CharRow::ClearCell(const size_t column)
+void CharRow::ClearCell(const til::CoordType column)
 {
     _data.at(column).Reset();
 }
@@ -178,7 +132,7 @@ void CharRow::ClearCell(const size_t column)
 // - True if there is valid text in this row. False otherwise.
 bool CharRow::ContainsText() const noexcept
 {
-    for (const value_type& cell : _data)
+    for (const auto& cell : _data)
     {
         if (!cell.IsSpace())
         {
@@ -195,7 +149,7 @@ bool CharRow::ContainsText() const noexcept
 // Return Value:
 // - the attribute
 // Note: will throw exception if column is out of bounds
-const DbcsAttribute& CharRow::DbcsAttrAt(const size_t column) const
+const DbcsAttribute& CharRow::DbcsAttrAt(const til::CoordType column) const
 {
     return _data.at(column).DbcsAttr();
 }
@@ -207,7 +161,7 @@ const DbcsAttribute& CharRow::DbcsAttrAt(const size_t column) const
 // Return Value:
 // - the attribute
 // Note: will throw exception if column is out of bounds
-DbcsAttribute& CharRow::DbcsAttrAt(const size_t column)
+DbcsAttribute& CharRow::DbcsAttrAt(const til::CoordType column)
 {
     return _data.at(column).DbcsAttr();
 }
@@ -219,7 +173,7 @@ DbcsAttribute& CharRow::DbcsAttrAt(const size_t column)
 // Return Value:
 // - <none>
 // Note: will throw exception if column is out of bounds
-void CharRow::ClearGlyph(const size_t column)
+void CharRow::ClearGlyph(const til::CoordType column)
 {
     _data.at(column).EraseChars();
 }
@@ -231,9 +185,9 @@ void CharRow::ClearGlyph(const size_t column)
 // Return Value:
 // - text data at column
 // - Note: will throw exception if column is out of bounds
-const CharRow::reference CharRow::GlyphAt(const size_t column) const
+const CharRow::reference CharRow::GlyphAt(const til::CoordType column) const
 {
-    THROW_HR_IF(E_INVALIDARG, column >= _data.size());
+    THROW_HR_IF(E_INVALIDARG, column < 0 || column >= gsl::narrow_cast<til::CoordType>(_data.size()));
     return { const_cast<CharRow&>(*this), column };
 }
 
@@ -244,9 +198,9 @@ const CharRow::reference CharRow::GlyphAt(const size_t column) const
 // Return Value:
 // - text data at column
 // - Note: will throw exception if column is out of bounds
-CharRow::reference CharRow::GlyphAt(const size_t column)
+CharRow::reference CharRow::GlyphAt(const til::CoordType column)
 {
-    THROW_HR_IF(E_INVALIDARG, column >= _data.size());
+    THROW_HR_IF(E_INVALIDARG, column < 0 || column >= gsl::narrow_cast<til::CoordType>(_data.size()));
     return { *this, column };
 }
 
@@ -255,7 +209,7 @@ std::wstring CharRow::GetText() const
     std::wstring wstr;
     wstr.reserve(_data.size());
 
-    for (size_t i = 0; i < _data.size(); ++i)
+    for (til::CoordType i = 0; i < gsl::narrow_cast<til::CoordType>(_data.size()); ++i)
     {
         const auto glyph = GlyphAt(i);
         if (!DbcsAttrAt(i).IsTrailing())
@@ -277,9 +231,9 @@ std::wstring CharRow::GetText() const
 // - wordDelimiters: the delimiters defined as a part of the DelimiterClass::DelimiterChar
 // Return Value:
 // - the delimiter class for the given char
-const DelimiterClass CharRow::DelimiterClassAt(const size_t column, const std::wstring_view wordDelimiters) const
+const DelimiterClass CharRow::DelimiterClassAt(const til::CoordType column, const std::wstring_view wordDelimiters) const
 {
-    THROW_HR_IF(E_INVALIDARG, column >= _data.size());
+    THROW_HR_IF(E_INVALIDARG, column < 0 || column >= gsl::narrow_cast<til::CoordType>(_data.size()));
 
     const auto glyph = *GlyphAt(column).begin();
     if (glyph <= UNICODE_SPACE)
@@ -311,10 +265,10 @@ const UnicodeStorage& CharRow::GetUnicodeStorage() const noexcept
 // Arguments:
 // - column - the column to generate the key for
 // Return Value:
-// - the COORD key for data access from UnicodeStorage for the column
-COORD CharRow::GetStorageKey(const size_t column) const noexcept
+// - the til::point key for data access from UnicodeStorage for the column
+til::point CharRow::GetStorageKey(const til::CoordType column) const noexcept
 {
-    return { gsl::narrow<SHORT>(column), _pParent->GetId() };
+    return { column, _pParent->GetId() };
 }
 
 // Routine Description:
